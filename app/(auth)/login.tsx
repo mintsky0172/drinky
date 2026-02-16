@@ -1,0 +1,80 @@
+import AppButton from "@/src/components/ui/AppButton";
+import AppText from "@/src/components/ui/AppText";
+import TextField from "@/src/components/ui/TextField";
+import { auth } from "@/src/lib/firebase";
+import { useRouter } from "expo-router";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import React, { useState } from "react";
+import { Alert, ImageBackground, Image, StyleSheet, View } from "react-native";
+
+function Login() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+
+  const onLogin = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), pw);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      Alert.alert("로그인 실패", e?.messsage ?? "에러가 발생했어요");
+    }
+  };
+  return (
+    <ImageBackground
+      source={require("@/assets/images/loading_background.png")}
+      style={styles.bg}
+      resizeMode="cover"
+    >
+      <Image
+        source={require("@/assets/images/logo.png")}
+        style={styles.logo}
+        resizeMode="contain"
+      />
+      <View style={styles.form}>
+        <AppText preset="h1" style={{ textAlign: "center" }}>
+          로그인
+        </AppText>
+        <TextField
+          placeholder="이메일"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <TextField
+          placeholder="비밀번호"
+          secureTextEntry
+          value={pw}
+          onChangeText={setPw}
+        />
+        <AppButton label="로그인" onPress={onLogin} />
+        <AppButton
+          label="회원가입"
+          variant="danger"
+          onPress={() => router.push("/signup")}
+        />
+      </View>
+    </ImageBackground>
+  );
+}
+
+export default Login;
+
+const styles = StyleSheet.create({
+  bg: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: 220,
+    marginBottom: 12,
+    marginTop: -80
+  },
+  form: {
+    width: "100%",
+    paddingHorizontal: 40,
+    gap: 12,
+    marginTop: -48,
+  },
+});

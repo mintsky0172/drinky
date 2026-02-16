@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
+import AuthProvider from "@/src/providers/AuthProvider";
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -7,5 +8,10 @@ export default function RootLayout() {
   });
 
   if (!loaded) return null;
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    
+    <AuthProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </AuthProvider>
+  );
 }
