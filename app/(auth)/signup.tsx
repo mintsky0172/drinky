@@ -13,15 +13,22 @@ import AppText from "@/src/components/ui/AppText";
 import TextField from "@/src/components/ui/TextField";
 import AppButton from "@/src/components/ui/AppButton";
 import { auth } from "@/src/lib/firebase";
+import { ensureUserDoc } from "@/src/lib/user";
 
 const Signup = () => {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
+  const [nickname, setNickname] = useState('');
 
   const onSignup = async () => {
     try {
-      await createUserWithEmailAndPassword(auth, email.trim(), pw);
+      const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
+      await ensureUserDoc({
+        uid: cred.user.uid,
+        email: cred.user.email ?? email.trim(),
+        nickname: nickname.trim() || undefined
+      });
       router.replace("/(tabs)");
     } catch (e: any) {
       Alert.alert("회원가입 실패", e?.message ?? "에러가 발생했어요");
@@ -42,6 +49,11 @@ const Signup = () => {
         <AppText preset="h1" style={{ textAlign: "center" }}>
           회원가입
         </AppText>
+          <TextField
+          placeholder="닉네임(선택)"
+          value={nickname}
+          onChangeText={setNickname}
+        />
         <TextField
           placeholder="이메일"
           autoCapitalize="none"

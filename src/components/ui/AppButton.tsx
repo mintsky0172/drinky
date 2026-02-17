@@ -1,5 +1,8 @@
 import {
   ActivityIndicator,
+  Image,
+  ImageSourcePropType,
+  ImageStyle,
   Pressable,
   StyleProp,
   StyleSheet,
@@ -20,6 +23,9 @@ type AppButtonProps = {
   variant?: ButtonVariant;
   size?: "md" | "sm";
   style?: StyleProp<ViewStyle>;
+  iconSource?: ImageSourcePropType;
+  iconSize?: number;
+  iconStyle?: StyleProp<ImageStyle>;
   testID?: string;
 };
 
@@ -31,6 +37,9 @@ const AppButton = ({
   variant = "primary",
   size = "md",
   style,
+  iconSource,
+  iconSize = 18,
+  iconStyle,
   testID,
 }: AppButtonProps) => {
   const isDisabled = disabled || loading;
@@ -67,13 +76,22 @@ const AppButton = ({
           }
         />
       ) : (
-        <AppText
-          preset={size === "sm" ? "buttonSmall" : "button"}
-          color={textColor}
-          style={styles.label}
-        >
-          {label}
-        </AppText>
+        <>
+          {iconSource ? (
+            <Image
+              source={iconSource}
+              style={[styles.icon, { width: iconSize, height: iconSize }, iconStyle]}
+              resizeMode="contain"
+            />
+          ) : null}
+          <AppText
+            preset={size === "sm" ? "buttonSmall" : "button"}
+            color={textColor}
+            style={styles.label}
+          >
+            {label}
+          </AppText>
+        </>
       )}
     </Pressable>
   );
@@ -95,7 +113,7 @@ const variantStyles: Record<
   },
   secondary: {
     container: {
-      backgroundColor: "transparent",
+      backgroundColor: COLORS.base.creamPaper,
       borderColor: COLORS.primary.caramel,
       borderWidth: 1,
     },
@@ -136,6 +154,9 @@ const styles = StyleSheet.create({
   },
   label: {
     ...TYPOGRAPHY.preset.button,
+  },
+  icon: {
+    marginRight: 8,
   },
   pressed: {
     opacity: 0.85,

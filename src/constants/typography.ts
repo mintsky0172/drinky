@@ -121,8 +121,8 @@ export const TYPOGRAPHY = {
 
     // Buttons
     button: {
-      fontFamily: "System",
-      fontSize: 16,
+      fontFamily: "Iseoyun",
+      fontSize: 20,
       lineHeight: 20,
       letterSpacing: 0.2,
       fontWeight: "600",
