@@ -72,7 +72,7 @@ export const TYPOGRAPHY = {
     },
 
     body: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 16,
       lineHeight: 22,
       letterSpacing: 0,
@@ -91,28 +91,28 @@ export const TYPOGRAPHY = {
       letterSpacing: 0,
     },
     caption: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 12,
       lineHeight: 16,
       letterSpacing: 0.2,
     },
 
     numberLg: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 28,
       lineHeight: 34,
       letterSpacing: -0.2,
       fontWeight: "700",
     },
     numberMd: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 20,
       lineHeight: 26,
       letterSpacing: -0.1,
       fontWeight: "700",
     },
     numberSm: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 16,
       lineHeight: 22,
       letterSpacing: 0,
@@ -128,7 +128,7 @@ export const TYPOGRAPHY = {
       fontWeight: "600",
     },
     buttonSmall: {
-      fontFamily: "System",
+      fontFamily: "Iseoyun",
       fontSize: 14,
       lineHeight: 18,
       letterSpacing: 0.2,

@@ -24,7 +24,7 @@ export const COLORS = {
   // Status 
   status: {
     balanced: "#6BB775",
-    low: "#FEDE0C",
+    low: "rgba(254,202,12, 1)",
     high: "#E54F12",
   },
 
@@ -40,6 +40,11 @@ export const COLORS = {
     // Disabled
     disabledBg: "#E9E1D8",
     disabledText: "#A89A8F",
+
+    // Card background
+    cardYellowBg: "rgba(254, 202, 12, 0.1)",
+    cardGreenBg: 'rgba(107, 183, 117, 0.1)',
+    cardRedBg: "rgba(229, 79, 18, 0.1)"
   },
 
   // Semantic aliases 

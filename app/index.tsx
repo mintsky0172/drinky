@@ -1,42 +1,48 @@
-import { Image, ImageBackground, StyleSheet, Text, View } from 'react-native'
-import React, { useEffect } from 'react'
-import { useRouter } from 'expo-router'
-import { useAuth } from '@/src/providers/AuthProvider';
+import { Image, ImageBackground, StyleSheet } from "react-native";
+import React, { useEffect } from "react";
+import { useRouter } from "expo-router";
+import { useAuthGate } from "@/src/features/auth/AuthGate";
 
 const SplashScreen = () => {
-    const router = useRouter();
-    const { user, initializing } = useAuth();
+  const router = useRouter();
+  const route = useAuthGate();
 
-    useEffect(() => {
-        if(initializing) return;
-        const initApp = async () => {
-            // TODO : Firebase auth 체크
-            await new Promise(resolve => setTimeout(resolve, 1800));
-            if(user) router.replace('/(tabs)');
-            else router.replace('/login');
-        };
+  useEffect(() => {
+    if (route === "LOADING") return;
 
-        initApp();
-    }, [user, initializing]);
+    const t = setTimeout(() => {
+      if (route === "AUTH") router.replace("/(auth)/login");
+      else if (route === "NICKNAME") router.replace("/(auth)/nickname");
+      else router.replace("/(tabs)");
+    }, 900);
+
+    return () => clearTimeout(t);
+  }, [route, router]);
 
   return (
     <ImageBackground
-        source={require("@/assets/images/loading_background.png")}
-        style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}
-        resizeMode="cover"
+      source={require("@/assets/images/loading_background.png")}
+      style={styles.bg}
+      resizeMode="cover"
     >
-        <Image source={require('@/assets/images/logo.png')}
+      <Image
+        source={require("@/assets/images/logo.png")}
         style={styles.logo}
         resizeMode="contain"
-        />
+      />
     </ImageBackground>
-  )
-}
+  );
+};
 
-export default SplashScreen
+export default SplashScreen;
 
 const styles = StyleSheet.create({
-    logo: {
-        width: 220
-    }
-})
+  bg: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  logo: {
+    width: 220,
+  },
+});

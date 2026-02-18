@@ -19,12 +19,13 @@ export async function ensureUserDoc(params: {
     nickname?: string;
 }) {
     const { uid, email, nickname } = params;
+    const trimmedNickname = nickname?.trim();
 
     await setDoc(
         doc(db, "users", uid),
         {
             email,
-            nickname: nickname ?? '닉네임입니다',
+            ...(trimmedNickname ? { nickname: trimmedNickname } : {}),
             goals: DEFAULT_GOALS,
             streak: 0,
             createdAt: serverTimestamp(),

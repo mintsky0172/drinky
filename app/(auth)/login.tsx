@@ -19,7 +19,7 @@ function Login() {
   const onLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email.trim(), pw);
-      router.replace("/(tabs)");
+      router.replace("/");
     } catch (e: any) {
       Alert.alert("로그인 실패", e?.messsage ?? "에러가 발생했어요");
     }
@@ -36,6 +36,7 @@ function Login() {
         text2: "Drinky에 오신 걸 환영해요☕️",
         position: "bottom",
       });
+      router.replace("/");
     } catch (e: any) {
       Toast.show({
         type: "error",

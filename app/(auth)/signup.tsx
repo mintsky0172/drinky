@@ -2,8 +2,7 @@ import {
   Alert,
   ImageBackground,
   StyleSheet,
-  Text,
-  View,
+   View,
   Image,
 } from "react-native";
 import React, { useState } from "react";
@@ -29,7 +28,7 @@ const Signup = () => {
         email: cred.user.email ?? email.trim(),
         nickname: nickname.trim() || undefined
       });
-      router.replace("/(tabs)");
+      router.replace("/");
     } catch (e: any) {
       Alert.alert("회원가입 실패", e?.message ?? "에러가 발생했어요");
     }

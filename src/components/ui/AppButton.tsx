@@ -11,7 +11,6 @@ import {
 import React from "react";
 import { COLORS } from "@/src/constants/colors";
 import AppText from "./AppText";
-import { TYPOGRAPHY } from "@/src/constants/typography";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -153,7 +152,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   label: {
-    ...TYPOGRAPHY.preset.button,
+    includeFontPadding: false,
+    textAlignVertical: "center",
+    marginTop: 5
   },
   icon: {
     marginRight: 8,
