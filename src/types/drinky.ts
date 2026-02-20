@@ -7,7 +7,6 @@ export type Unit = "cup" | "ml";
 export type DrinkRecipe = {
     id: string;
     name: string;
-    brand?: string;
     iconKey: string;
     isWaterOnly: boolean; // 수분 합산 여부(순수 물만 true)
     baseMl: number; // 355, 473, 200 등
@@ -24,7 +23,9 @@ export type EntryDoc = {
 
     drinkId?: string;
     drinkName: string;
-    brand?: string;
+
+    brandLabel?: string | null,
+    brandNormalized?: string | null,
 
     iconKey: string;
     isWaterOnly: boolean;
@@ -40,4 +41,6 @@ export type EntryDoc = {
     totalSugarG: number;
 
     waterMl: number; // isWaterOnly ? totalMl : 0
+
+    memo?: string | null;
 };

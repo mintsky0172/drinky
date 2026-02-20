@@ -1,4 +1,6 @@
 import AppText from "@/src/components/ui/AppText";
+import { COLORS } from "@/src/constants/colors";
+import { TYPOGRAPHY } from "@/src/constants/typography";
 import { auth, db } from "@/src/lib/firebase";
 import { useRouter } from "expo-router";
 import { deleteUser, signOut } from "firebase/auth";
@@ -10,7 +12,7 @@ import {
   writeBatch,
 } from "firebase/firestore";
 import React from "react";
-import { View, Text, Alert } from "react-native";
+import { View, Text, Alert, Pressable, StyleSheet, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 async function deleteAllEntries(uid: string) {
@@ -68,6 +70,10 @@ function Me() {
   return (
     <SafeAreaView style={{ flex: 1 }} edges={["bottom"]}>
       <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 100, gap: 12 }}>
+        <Pressable onPress={() => router.push('/me/goals')} style={styles.row}>
+          <Image source={require('@/assets/icons/etc/goal.png')} style={styles.icon}/>
+          <Text style={styles.rowTitle}>목표 설정</Text>
+        </Pressable>
         <AppText preset="h3" onPress={onLogout} style={{ textAlign: "center" }}>
           로그아웃
         </AppText>
@@ -84,3 +90,19 @@ function Me() {
 }
 
 export default Me;
+
+const styles = StyleSheet.create({
+row: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
+  paddingVertical: 14,
+  paddingHorizontal: 12,
+  gap: 10
+},
+rowTitle: { ...TYPOGRAPHY.preset.body, color: COLORS.semantic.textPrimary},
+icon: {
+  width: 32,
+  height: 32
+}
+})

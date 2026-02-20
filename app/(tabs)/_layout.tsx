@@ -1,10 +1,7 @@
-import { COLORS } from "@/src/constants/colors";
 import { TAB_BAR } from "@/src/constants/tabBar";
 import { TAB_ICONS } from "@/src/constants/tabIcons";
 import { Tabs } from "expo-router";
-import { View, Image, StyleSheet } from "react-native";
-
-const headerBg = require("../../assets/header/syrup_header.png");
+import { Image, StyleSheet } from "react-native";
 
 function TabIcon({
   routeKey,
@@ -28,19 +25,8 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: true,
-        headerTitle: "",
-        headerTransparent: true,
-        headerShadowVisible: false,
-        headerBackground: () => (
-          <View style={styles.headerBgWrap}>
-            <Image source={headerBg} style={styles.headerBg} resizeMode="cover" />
-          </View>
-
-        ),
-        headerStyle: {
-          backgroundColor: 'transparent',
-        },
+        headerShown: false,
+        sceneStyle: { backgroundColor: "transparent" },
 
         // 탭바
         tabBarStyle: TAB_BAR.style as any,
@@ -86,11 +72,4 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
   },
-  headerBgWrap: {
-    flex: 1,
-  },
-  headerBg: {
-    width: '100%',
-    height: '100%'
-  }
-})
+});

@@ -154,7 +154,6 @@ const styles = StyleSheet.create({
   label: {
     includeFontPadding: false,
     textAlignVertical: "center",
-    marginTop: 5
   },
   icon: {
     marginRight: 8,

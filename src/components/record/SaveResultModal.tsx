@@ -19,8 +19,8 @@ const SaveResultModal = ({ visible, onContinue, onGoHome }: Props) => {
                 <Text style={styles.sub}>계속 기록할까요?</Text>
 
                 <View style={styles.btnRow}>
-                    <AppButton label="홈으로" variant="secondary" />
-                    <AppButton label="계속 기록하기" variant="primary" />
+                    <AppButton label="홈으로" variant="secondary" onPress={onGoHome}/>
+                    <AppButton label="계속 기록하기" variant="primary" onPress={onContinue} />
                 </View>
             </View>
         </View>

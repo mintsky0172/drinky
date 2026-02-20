@@ -1,14 +1,24 @@
 import {
+  Alert,
   Pressable,
   StyleSheet,
   Text,
   View,
   ScrollView,
+  Image,
+  Modal,
+  Platform,
 } from "react-native";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 import AppButton from "@/src/components/ui/AppButton";
@@ -18,108 +28,402 @@ import DrinkIcon from "@/src/components/common/DrinkIcon";
 import Toast from "react-native-toast-message";
 import IconPickerModal from "@/src/components/home/IconPickerModal";
 import {
+  collection,
   doc,
-  getDoc,
+  query,
   serverTimestamp,
   setDoc,
   deleteField,
+  where,
+  onSnapshot,
 } from "firebase/firestore";
-import { auth, db } from "@/src/lib/firebase";
-import { toDateKey } from "@/src/lib/dateKey";
+import { db } from "@/src/lib/firebase";
+import { addDays, toDateKey, toKoreanDateLabel } from "@/src/lib/dateKey";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useAuth } from "@/src/providers/AuthProvider";
 
 type SummaryCard = {
-  label: "수분" | "카페인" | "당류";
+  label: "수분💧" | "카페인☕️" | "당류🍭";
   value: string;
-  status: string;
+  status: VariantLevelLabel;
   variant: "water" | "caffeine" | "sugar";
 };
 
+type TodayDrinkItem = {
+  name: string;
+  servingsText: string;
+};
+
+type SummaryTotals = {
+  waterMl: number;
+  caffeineMg: number;
+  sugarG: number;
+};
+
+const DEFAULT_GOALS = {
+  waterMl: 2000,
+  caffeineMg: 300,
+  sugarG: 50,
+};
+
+const balancedMessages = [
+  "균형 잡힌 하루에요!",
+  "오늘 컨디션 좋아 보여요.",
+  "딱 좋게 잘 마셨어요.",
+  "부담 없이 깔끔한 하루였어요.",
+];
+
+type VariantLevelLabel = "조금 적음" | "적절" | "조금 많음";
+
+function scoreForIcon(entry: { isWaterOnly?: boolean; totalMl?: number }) {
+  const base = Number(entry.totalMl ?? 0);
+  const weight = entry.isWaterOnly ? 0.7 : 1;
+  return base * weight;
+}
+
+function getLevelWater(value: number, goal: number): VariantLevelLabel {
+  if (value <= 0) return "조금 적음"; // water 0은 무조건 부족
+  if (!goal || goal <= 0) return "적절";
+  const ratio = value / goal;
+  if (ratio < 0.8) return "조금 적음";
+  return "적절";
+}
+
+function getLevelOptional(value: number, goal: number): VariantLevelLabel {
+  if (value <= 0) return "적절"; // caffeine, sugar는 0이어도 괜찮음
+  if (!goal || goal <= 0) return "적절";
+  const ratio = value / goal;
+  if (ratio > 1.2) return "조금 많음";
+  return "적절";
+}
+
+function pickSummaryText(levels: {
+  water: VariantLevelLabel;
+  caffeine: VariantLevelLabel;
+  sugar: VariantLevelLabel;
+}) {
+  const { water: w, caffeine: c, sugar: s } = levels;
+
+  // 완전 균형
+  if (w === "적절" && c === "적절" && s === "적절") {
+    return "균형 잡힌 하루에요!";
+  }
+
+  // 가장 우선순위 높은 경고 : 카페인/당 높을 때
+  if (c === "조금 많음" && s === "조금 많음")
+    return "오늘은 자극이 좀 강했어요. 물을 좀 더 마시는 건 어때요?";
+  if (c === "조금 많음")
+    return "오늘은 카페인이 조금 많았어요. 다음 음료는 디카페인 어때요?";
+  if (s === "조금 많음")
+    return "오늘은 당이 조금 많았어요. 다음 음료는 덜 달게 어때요?";
+
+  // 수분 부족
+  if (w === "조금 적음") return "오늘은 물이 조금 부족해요. 한 잔만 더!";
+
+  // 나머지
+  return balancedMessages[Math.floor(Math.random() * balancedMessages.length)];
+}
+
 const HomeScreen = () => {
   const router = useRouter();
-  // TODO: Firestore에서 오늘 집계로 교체
-  const dateText = "2026. 02. 15";
-  const dayText = "일요일";
-  const dateKey = useMemo(() => toDateKey(new Date()), []);
+  const { user, initializing } = useAuth();
 
-  const todayDrinks = [
-    { name: "물", servingsText: "5잔" },
-    { name: "아이스 아메리카노", servingsText: "2잔" },
-    { name: "오렌지 주스", servingsText: "1잔" },
-  ];
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const todayKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
+  const todayLabel = useMemo(
+    () => toKoreanDateLabel(selectedDate),
+    [selectedDate],
+  );
+  const todayWeekday = useMemo(
+    () =>
+      new Intl.DateTimeFormat("ko-KR", { weekday: "long" }).format(
+        selectedDate,
+      ),
+    [selectedDate],
+  );
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const calendar = require("@/assets/tabs/calendar_inactive.png");
 
-  const cards: SummaryCard[] = [
-    { label: "수분", value: "1,000mL", status: "조금 부족", variant: "water" },
-    {
-      label: "카페인",
-      value: "100mg",
-      status: "조금 많음",
-      variant: "caffeine",
-    },
-    { label: "당류", value: "30g", status: "적절", variant: "sugar" },
-  ];
+  const [todayDrinks, setTodayDrinks] = useState<TodayDrinkItem[]>([]);
+  const [totals, setTotals] = useState<SummaryTotals>({
+    waterMl: 0,
+    caffeineMg: 0,
+    sugarG: 0,
+  });
 
-  const [todayIconKey, setTodayIconKey] = useState<IconKey>("default");
+  const [goals, setGoals] = useState(DEFAULT_GOALS);
+
+  const cards: SummaryCard[] = useMemo(
+    () => [
+      {
+        label: "수분💧",
+        value: `${totals.waterMl.toLocaleString()}mL`,
+        status: getLevelWater(totals.waterMl, goals.waterMl),
+        variant: "water",
+      },
+      {
+        label: "카페인☕️",
+        value: `${totals.caffeineMg.toLocaleString()}mg`,
+        status: getLevelOptional(totals.caffeineMg, goals.caffeineMg),
+        variant: "caffeine",
+      },
+      {
+        label: "당류🍭",
+        value: `${totals.sugarG.toLocaleString()}g`,
+        status: getLevelOptional(totals.sugarG, goals.sugarG),
+        variant: "sugar",
+      },
+    ],
+    [goals, totals],
+  );
+
+  const isBalanced = useMemo(() => {
+    const waterLevel = getLevelWater(totals.waterMl, goals.waterMl);
+    const caffeineLevel = getLevelOptional(totals.caffeineMg, goals.caffeineMg);
+    const sugarLevel = getLevelOptional(totals.sugarG, goals.sugarG);
+
+    return (
+      waterLevel === "적절" && caffeineLevel === "적절" && sugarLevel === "적절"
+    );
+  }, [totals, goals]);
+
   const [todayOneLine, setTodayOneLine] = useState("");
+  const [goalsAchieved, setGoalsAchieved] = useState(false);
   const [topIconKey, setTopIconKey] = useState<IconKey | null>(null);
+  const [overrideIconKey, setOverrideIconKey] = useState<IconKey | null>(null);
+  const todayIconKey = useMemo<IconKey>(
+    () => overrideIconKey ?? topIconKey ?? "default",
+    [overrideIconKey, topIconKey],
+  );
+  const [showConfetti, setShowConfetti] = useState(false);
+  const confettiFiredDateRef = useRef<string | null>(null);
+
+  const summaryText = useMemo(
+    () =>
+      pickSummaryText({
+        water: getLevelWater(totals.waterMl, goals.waterMl),
+        caffeine: getLevelOptional(totals.caffeineMg, goals.caffeineMg),
+        sugar: getLevelOptional(totals.sugarG, goals.sugarG),
+      }),
+    [totals, goals],
+  );
 
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
 
-  const [loadingSummary, setLoadingSummary] = useState(true);
-
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const getSummaryRef = () => {
-    const user = auth.currentUser;
+  const scrollRef = useRef<ScrollView>(null);
+
+  const getSummaryRef = useCallback(() => {
     if (!user) return null;
-    return doc(db, "users", user.uid, "dailySummaries", dateKey);
-  };
+    return doc(db, "users", user.uid, "dailySummaries", todayKey);
+  }, [todayKey, user]);
+
+  // 날짜 갱신
+  useFocusEffect(useCallback(() => {}, []));
+
+  // 자정 넘어가면 다음날로 갱신
+  useEffect(() => {
+    const id = setInterval(() => {
+      const now = new Date();
+      if (toDateKey(selectedDate) !== toDateKey(now)) {
+        setSelectedDate(now);
+      }
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, [selectedDate]);
 
   /** 1) 홈 진입 시 : summary 불러오기 */
   useEffect(() => {
-    const run = async () => {
-      const user = auth.currentUser;
-      if (!user) {
-        setLoadingSummary(false);
-        return;
-      }
+    if (initializing) return;
 
-      try {
-        const ref = getSummaryRef();
-        if (!ref) return;
+    // 로그인 전 상태
+    if (!user) {
+      setTodayDrinks([]);
+      setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0 });
+      setGoals(DEFAULT_GOALS);
+      setTopIconKey(null);
+      setTodayOneLine("");
+      setOverrideIconKey(null);
+      setGoalsAchieved(false);
+      return;
+    }
 
-        const snap = await getDoc(ref);
+    const uid = user.uid;
+
+    const userRef = doc(db, "users", uid);
+    const summaryRef = doc(db, "users", uid, "dailySummaries", todayKey);
+    const entriesRef = collection(db, "users", uid, "entries");
+    const entriesQ = query(entriesRef, where("dateKey", "==", todayKey));
+
+    // 1) goals 구독
+    const unsubUser = onSnapshot(
+      userRef,
+      (snap) => {
+        const userGoals = snap.data()?.goals as
+          | { waterMl?: number; caffeineMg?: number; sugarG?: number }
+          | undefined;
+
+        setGoals({
+          waterMl: userGoals?.waterMl ?? DEFAULT_GOALS.waterMl,
+          caffeineMg: userGoals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
+          sugarG: userGoals?.sugarG ?? DEFAULT_GOALS.sugarG,
+        });
+      },
+      () => {
+        // goals 실패해도 기본값 유지
+        setGoals(DEFAULT_GOALS);
+      },
+    );
+
+    // 2) summary (오늘의 한 줄/overrideIcon) 구독
+    const unsubSummary = onSnapshot(
+      summaryRef,
+      async (snap) => {
         if (snap.exists()) {
           const data = snap.data() as any;
-
-          const overrideIconKey = data.overrideIconKey as IconKey | undefined;
-          const topIconKeyFromDb = data.topIconKey as IconKey | undefined;
-
-          setTodayIconKey(overrideIconKey ?? topIconKeyFromDb ?? "default");
           setTodayOneLine(data.oneLine ?? "");
+          setGoalsAchieved(Boolean(data.goalsAchieved));
+          const override =
+            (data.overrideIconKey as IconKey | undefined) ?? null;
+          setOverrideIconKey(override);
         } else {
+          setOverrideIconKey(null);
+          setTodayOneLine("");
+          setGoalsAchieved(false);
+
+          // 문서 없으면 생성(메모 저장용으로만)
           await setDoc(
-            ref,
+            summaryRef,
             {
-              dateKey,
+              dateKey: todayKey,
               createdAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             },
             { merge: true },
           );
         }
-      } catch (e: any) {
-        Toast.show({ type: "error", text1: "데이터 불러오기 실패" });
-      } finally {
-        setLoadingSummary(false);
-      }
-    };
+      },
+      () => {
+        // 실패하면 그냥 빈 값
+        setOverrideIconKey(null);
+        setTodayOneLine("");
+        setGoalsAchieved(false);
+      },
+    );
 
-    run();
+    // 3) entries 구독 -> totals, todayDrinks, topIconKey 계산
+    const unsubEntries = onSnapshot(
+      entriesQ,
+      (snap) => {
+        const dailyEntryDocs = snap.docs;
 
-    // 언마운트 시 타이머 정리
+        // 음료별 합치기
+        const byDrink = new Map<
+          string,
+          {
+            name: string;
+            unit: "cup" | "ml";
+            servings: number;
+            totalMl: number;
+          }
+        >();
+
+        let nextTotals: SummaryTotals = {
+          waterMl: 0,
+          caffeineMg: 0,
+          sugarG: 0,
+        };
+        const iconScores = new Map<IconKey, number>();
+
+        dailyEntryDocs.forEach((entryDoc) => {
+          const e = entryDoc.data() as any;
+
+          const name = (e.drinkName as string) ?? "알 수 없는 음료";
+          const unit = (e.unit as "cup" | "ml") ?? "cup";
+          const servings = Number(e.servings ?? 0);
+          const totalMl = Number(e.totalMl ?? 0);
+
+          const key = `${name}::${unit}`;
+          const prev = byDrink.get(key);
+
+          byDrink.set(key, {
+            name,
+            unit,
+            servings: (prev?.servings ?? 0) + servings,
+            totalMl: (prev?.totalMl ?? 0) + totalMl,
+          });
+
+          // waterMl은 isWaterOnly + totalMl로 계산
+          nextTotals = {
+            waterMl: nextTotals.waterMl + (e.isWaterOnly ? totalMl : 0),
+            caffeineMg: nextTotals.caffeineMg + Number(e.totalCaffeineMg ?? 0),
+            sugarG: nextTotals.sugarG + Number(e.totalSugarG ?? 0),
+          };
+
+          const iconKey = (e.iconKey as IconKey) ?? "default";
+          const prevIconScore = iconScores.get(iconKey) ?? 0;
+          iconScores.set(iconKey, prevIconScore + scoreForIcon(e));
+        });
+
+        setTotals({
+          waterMl: Math.max(0, Math.round(nextTotals.waterMl)),
+          caffeineMg: Math.max(0, Math.round(nextTotals.caffeineMg)),
+          sugarG: Math.max(0, Math.round(nextTotals.sugarG)),
+        });
+
+        setTodayDrinks(
+          Array.from(byDrink.values()).map((d) => ({
+            name: d.name,
+            servingsText:
+              d.unit === "cup"
+                ? `${Math.round(d.servings)}잔`
+                : `${Math.round(d.totalMl)}mL`,
+          })),
+        );
+
+        // topIconKey 계산
+        let nextTopIconKey: IconKey | null = null;
+        let nextTopIconScore = -1;
+        iconScores.forEach((score, key) => {
+          if (score > nextTopIconScore) {
+            nextTopIconScore = score;
+            nextTopIconKey = key;
+          }
+        });
+        setTopIconKey(nextTopIconKey);
+      },
+      () => {
+        // entries 구독 실패 시 초기화
+        setTodayDrinks([]);
+        setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0 });
+        setTopIconKey(null);
+      },
+    );
+
+    // 언마운트 시 구독 해제 + 타이머 정리
     return () => {
+      unsubUser();
+      unsubSummary();
+      unsubEntries();
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, []);
+  }, [todayKey, user, initializing]);
+
+  useEffect(() => {
+    if (!isBalanced || !goalsAchieved) {
+      setShowConfetti(false);
+      return;
+    }
+
+    if (confettiFiredDateRef.current === todayKey) {
+      return;
+    }
+
+    confettiFiredDateRef.current = todayKey;
+    setShowConfetti(true);
+    const timer = setTimeout(() => setShowConfetti(false), 2400);
+    return () => clearTimeout(timer);
+  }, [isBalanced, goalsAchieved, todayKey]);
 
   /** 공통 저장 함수 */
   const saveSummary = async (
@@ -127,11 +431,11 @@ const HomeScreen = () => {
   ) => {
     const ref = getSummaryRef();
     if (!ref) {
-      Toast.show({ type: "error", text1: "로그인이 필요해요" });
-      return;
+      throw new Error("로그인이 필요해요");
     }
 
     const payload: any = {
+      dateKey: todayKey,
       ...patch,
       updatedAt: serverTimestamp(),
     };
@@ -141,14 +445,19 @@ const HomeScreen = () => {
 
   /** 2) 아이콘 선택: 즉시 저장 */
   const handleSelectIcon = async (key: IconKey) => {
-    setTodayIconKey(key);
     setIconPickerOpen(false);
+    setOverrideIconKey(key);
 
     try {
       await saveSummary({ overrideIconKey: key });
       Toast.show({ type: "success", text1: "대표 아이콘 변경 완료!" });
-    } catch {
-      Toast.show({ type: "error", text1: "아이콘 저장 실패" });
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "아이콘 저장 실패",
+        text2: String(e?.message ?? e),
+      });
+      Alert.alert("아이콘 저장 실패", String(e?.message ?? e));
     }
   };
 
@@ -156,13 +465,18 @@ const HomeScreen = () => {
   const handleResetIcon = async () => {
     setIconPickerOpen(false);
 
-    setTodayIconKey(topIconKey ?? 'default');
+    setOverrideIconKey(null);
 
     try {
       await saveSummary({ overrideIconKey: deleteField() });
       Toast.show({ type: "info", text1: "기본으로 되돌렸어요." });
-    } catch {
-      Toast.show({ type: "error", text1: "저장 실패" });
+    } catch (e: any) {
+      Toast.show({
+        type: "error",
+        text1: "저장 실패",
+        text2: String(e?.message ?? e),
+      });
+      Alert.alert("저장 실패", String(e?.message ?? e));
     }
   };
 
@@ -176,7 +490,7 @@ const HomeScreen = () => {
     saveTimerRef.current = setTimeout(async () => {
       try {
         await saveSummary({ oneLine: text.trim() });
-      } catch (e) {
+      } catch {
         Toast.show({ type: "error", text1: "오늘의 한 줄 저장 실패" });
       }
     }, 600);
@@ -189,7 +503,7 @@ const HomeScreen = () => {
     try {
       await saveSummary({ oneLine: todayOneLine.trim() });
       Toast.show({ type: "success", text1: "오늘의 한 줄 저장 완료!" });
-    } catch (e) {
+    } catch {
       Toast.show({ type: "error", text1: "오늘의 한 줄 저장 실패" });
     }
   };
@@ -198,30 +512,74 @@ const HomeScreen = () => {
     router.push("/record/create");
   };
 
+  const handleFocusOneLine = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets
       >
-        <View style={{ height: 30 }} />
+        {showConfetti ? (
+          <Text style={styles.confettiFallback}>🎉</Text>
+        ) : null}
         {/* 날짜 */}
+        <Pressable
+          style={styles.calendar}
+          onPress={() => setDatePickerOpen(true)}
+          hitSlop={10}
+        >
+          <Image source={calendar} style={styles.calendarIcon} />
+        </Pressable>
         <View style={styles.sectionTop}>
-          <Text style={styles.dateText}>
-            {dateText} <Text style={styles.dayText}>{dayText}</Text>
-          </Text>
+          <View style={styles.dateBar}>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => setSelectedDate((d) => addDays(d, -1))}
+              hitSlop={10}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={18}
+                color={COLORS.semantic.textPrimary}
+              />
+            </Pressable>
+            <Text style={styles.dateText}>
+              {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
+            </Text>
+            <Pressable
+              style={styles.iconBtn}
+              onPress={() => setSelectedDate((d) => addDays(d, +1))}
+              hitSlop={10}
+            >
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={COLORS.semantic.textPrimary}
+              />
+            </Pressable>
+          </View>
         </View>
         {/* 오늘의 음료 목록 */}
         <Text style={styles.sectionTitle}>오늘 마신 음료</Text>
         <View style={styles.listCard}>
-          {todayDrinks.map((d, idx) => (
-            <Text key={`${d.name}-${idx}`} style={styles.bulletItem}>
-              • {d.name} {d.servingsText}
-            </Text>
-          ))}
+          {todayDrinks.length ? (
+            todayDrinks.map((d, idx) => (
+              <Text key={`${d.name}-${idx}`} style={styles.bulletItem}>
+                • {d.name} {d.servingsText}
+              </Text>
+            ))
+          ) : (
+            <Text style={styles.bulletItem}>• 아직 기록한 음료가 없어요</Text>
+          )}
         </View>
         {/* 요약 타이틀 + 정보 */}
         <View style={styles.summaryHeaderRow}>
@@ -246,15 +604,12 @@ const HomeScreen = () => {
           {cards.map((c) => (
             <View
               key={c.variant}
-              style={[styles.miniCard, miniCardVariant(c.variant)]}
+              style={[styles.miniCard, miniCardVariant(c.status)]}
             >
               <Text style={styles.miniCardLabel}>{c.label}</Text>
               <Text style={styles.miniCardValue}>{c.value}</Text>
               <Text
-                style={[
-                  styles.miniCardStatus,
-                  miniCardStatusVariant(c.variant),
-                ]}
+                style={[styles.miniCardStatus, miniCardStatusVariant(c.status)]}
               >
                 {c.status}
               </Text>
@@ -262,7 +617,7 @@ const HomeScreen = () => {
           ))}
         </View>
         {/* 오늘의 요약 */}
-        <Text style={styles.statusLine}>균형 잡힌 하루에요!</Text>
+        <Text style={styles.statusLine}>{summaryText}</Text>
         {/* 오늘의 한줄 */}
         <TodayMemoCard
           icon={<DrinkIcon iconKey={todayIconKey} size={32} />}
@@ -270,6 +625,7 @@ const HomeScreen = () => {
           onPressIcon={() => setIconPickerOpen(true)}
           onChangeOneLine={handleChangeOneLine}
           onSubmitOneLine={handleSubmitOneLine}
+          onFocusOneLine={handleFocusOneLine}
         />
         <IconPickerModal
           visible={iconPickerOpen}
@@ -278,6 +634,50 @@ const HomeScreen = () => {
           onClose={() => setIconPickerOpen(false)}
           onResetToDefault={handleResetIcon}
         />
+        {datePickerOpen && Platform.OS === "ios" ? (
+          <Modal
+            transparent
+            visible={datePickerOpen}
+            animationType="fade"
+            onRequestClose={() => setDatePickerOpen(false)}
+          >
+            <Pressable
+              style={styles.modalOverlay}
+              onPress={() => setDatePickerOpen(false)}
+            />
+            <View style={styles.pickerCard}>
+              <Text style={styles.modalTitle}>날짜 선택</Text>
+              <View style={styles.pickerWrap}>
+                <DateTimePicker
+                  value={selectedDate}
+                  mode="date"
+                  display="spinner"
+                  style={styles.picker}
+                  onChange={(_, pickedDate) => {
+                    if (pickedDate) setSelectedDate(pickedDate);
+                  }}
+                />
+              </View>
+              <AppButton
+                label="완료"
+                variant="primary"
+                onPress={() => setDatePickerOpen(false)}
+              />
+            </View>
+          </Modal>
+        ) : null}
+        {datePickerOpen && Platform.OS !== "ios" ? (
+          <DateTimePicker
+            value={selectedDate}
+            mode="date"
+            display="default"
+            onChange={(_, pickedDate) => {
+              setDatePickerOpen(false);
+              if (pickedDate) setSelectedDate(pickedDate);
+            }}
+          />
+        ) : null}
+
         {/* CTA */}
         <AppButton
           label="+ 음료 기록하기"
@@ -293,19 +693,19 @@ const HomeScreen = () => {
 export default HomeScreen;
 
 /** variants */
-function miniCardVariant(variant: "water" | "caffeine" | "sugar") {
-  switch (variant) {
-    case "water":
+function miniCardVariant(status: "조금 적음" | "적절" | "조금 많음") {
+  switch (status) {
+    case "조금 적음":
       return {
         borderColor: COLORS.status.low,
         backgroundColor: COLORS.ui.cardYellowBg,
       };
-    case "caffeine":
+    case "조금 많음":
       return {
         borderColor: COLORS.status.high,
         backgroundColor: COLORS.ui.cardRedBg,
       };
-    case "sugar":
+    case "적절":
       return {
         borderColor: COLORS.status.balanced,
         backgroundColor: COLORS.ui.cardGreenBg,
@@ -313,13 +713,13 @@ function miniCardVariant(variant: "water" | "caffeine" | "sugar") {
   }
 }
 
-function miniCardStatusVariant(variant: "water" | "caffeine" | "sugar") {
-  switch (variant) {
-    case "water":
+function miniCardStatusVariant(status: "조금 적음" | "적절" | "조금 많음") {
+  switch (status) {
+    case "조금 적음":
       return { color: COLORS.status.low };
-    case "caffeine":
+    case "조금 많음":
       return { color: COLORS.status.high };
-    case "sugar":
+    case "적절":
       return { color: COLORS.status.balanced };
   }
 }
@@ -327,24 +727,39 @@ function miniCardStatusVariant(variant: "water" | "caffeine" | "sugar") {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: COLORS.base.creamPaper,
+    backgroundColor: "transparent",
   },
   container: {
     flexGrow: 1,
-    paddingBottom: 16,
-    backgroundColor: COLORS.base.creamPaper,
+    paddingTop: 20,
+    backgroundColor: "transparent",
     paddingHorizontal: 20,
   },
-  headerBg: {
-    height: 90,
-    width: "100%",
-  },
-  headerBgImg: {
-    resizeMode: "cover",
+  confettiFallback: {
+    position: "absolute",
+    top: 12,
+    right: 20,
+    zIndex: 20,
+    fontSize: 26,
   },
   sectionTop: {
     paddingHorizontal: 20,
+    paddingTop: 0,
+  },
+  dateBar: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 14,
     paddingTop: 8,
+    paddingBottom: 10,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+
+    alignItems: "center",
+    justifyContent: "center",
   },
   dateText: {
     ...TYPOGRAPHY.preset.h2,
@@ -426,5 +841,51 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 20,
+  },
+  calendar: {
+    alignSelf: "flex-end",
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 20,
+    marginBottom: 2,
+    borderRadius: 99,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.semantic.surface,
+    borderWidth: 1,
+  },
+  calendarIcon: {
+    width: 30,
+    height: 30,
+    resizeMode: "contain",
+    tintColor: COLORS.semantic.textSecondary,
+  },
+  modalOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  pickerCard: {
+    marginHorizontal: 16,
+    marginTop: "auto",
+    marginBottom: 24,
+    borderRadius: 16,
+    backgroundColor: COLORS.semantic.surface,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+  },
+  modalTitle: {
+    ...TYPOGRAPHY.preset.h3,
+    color: COLORS.semantic.textPrimary,
+    marginBottom: 8,
+  },
+  pickerWrap: {
+    height: 200,
+    justifyContent: "center",
+  },
+  picker: {
+    height: 200,
+    alignSelf: "stretch",
   },
 });

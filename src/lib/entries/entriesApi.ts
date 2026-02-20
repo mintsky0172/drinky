@@ -9,13 +9,18 @@ import {
 } from 'firebase/firestore';
 import type { EntryDoc } from '@/src/types/drinky';
 
+type EntryWritePayload = Omit<EntryDoc, "createdAt" | "updatedAt"> & {
+    createdAt: EntryDoc["createdAt"];
+    updatedAt: EntryDoc["updatedAt"];
+};
+
 function requireUid() {
     const uid = auth.currentUser?.uid;
     if (!uid) throw new Error("Not authenticated");
     return uid;
 }
 
-export async function addEntry(payload: Omit<EntryDoc, "createdAt" | 'updatedAt'> & any) {
+export async function addEntry(payload: EntryWritePayload) {
     const uid = requireUid();
     const ref = collection(db, 'users', uid, 'entries');
     return await addDoc(ref, payload);
