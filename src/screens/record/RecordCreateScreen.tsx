@@ -9,26 +9,45 @@ import {
   Image,
   Platform,
 } from "react-native";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TextField from "@/src/components/ui/TextField";
 import { COLORS } from "@/src/constants/colors";
 import AppButton from "@/src/components/ui/AppButton";
-import DrinkSearchOverlay from "@/src/components/record/DrinkSearchOverlay";
+import DrinkSearchModal from "@/src/components/record/DrinkSearchModal";
+import DrinkQuickPickModal from "@/src/components/record/DrinkQuickPickModal";
 import SaveResultModal from "@/src/components/record/SaveResultModal";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
 import { addEntry } from "@/src/lib/entries/entriesApi";
+import { db } from "@/src/lib/firebase";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import {
+  DRINK_ICONS,
+  DrinkIconKey,
+  INGREDIENT_ICONS,
+  IngredientIconKey,
+} from "@/src/constants/icons";
 
-type Item = { id: string; name: string };
+type Item = {
+  id: string;
+  name: string;
+  category?: string;
+  normalizedName?: string;
+  aliases?: string[];
+  searchKeywords?: string[];
+  drinkIconKey?: string;
+  calendarIconKey?: string;
+  mlPerServing?: number;
+  caffeineMgPerServing?: number;
+  sugarGPerServing?: number;
+  isWaterOnly?: boolean;
+};
 type Option = { value: string; label: string };
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
-const formatDateKey = (d: Date) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const formatDateDot = (d: Date) =>
   `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
 const formatTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -44,6 +63,113 @@ const SIZE_OPTIONS: Option[] = [
   { value: "L", label: "L" },
   { value: "XL", label: "XL" },
 ];
+
+const FREQUENT_ITEMS: Item[] = [
+  { id: "1", name: "아이스 아메리카노", drinkIconKey: "ice_americano", calendarIconKey: "bean", mlPerServing: 355, caffeineMgPerServing: 120, sugarGPerServing: 0, isWaterOnly: false },
+  { id: "2", name: "물", calendarIconKey: "water", mlPerServing: 200, caffeineMgPerServing: 0, sugarGPerServing: 0, isWaterOnly: true },
+  { id: "3", name: "바닐라 라떼", drinkIconKey: "ice_cafe_latte", calendarIconKey: "bean", mlPerServing: 355, caffeineMgPerServing: 100, sugarGPerServing: 20, isWaterOnly: false },
+];
+
+const RECENT_ITEMS: Item[] = [
+  { id: "4", name: "말차 프라푸치노", drinkIconKey: "matcha_frappe", calendarIconKey: "leaf", mlPerServing: 473, caffeineMgPerServing: 80, sugarGPerServing: 45, isWaterOnly: false },
+  { id: "5", name: "오렌지 주스", drinkIconKey: "orange_juice", calendarIconKey: "default", mlPerServing: 355, caffeineMgPerServing: 0, sugarGPerServing: 30, isWaterOnly: false },
+];
+
+function mapRecipeIconKeyToAppKey(params: {
+  drinkIconKey?: string;
+  name?: string;
+  category?: string;
+}): DrinkIconKey {
+  const rawKey = params.drinkIconKey ?? "";
+  if (rawKey in DRINK_ICONS) return rawKey as DrinkIconKey;
+
+  const name = (params.name ?? "").toLowerCase();
+  const category = (params.category ?? "").toLowerCase();
+
+  if (name.includes("밀크티")) return "ice_milk_tea";
+  if (name.includes("말차")) {
+    if (name.includes("프라푸치노") || category === "smoothie") return "matcha_frappe";
+    if (name.includes("아이스")) return "ice_matcha_latte";
+    return "matcha_latte";
+  }
+  if (name.includes("라떼") || category === "latte" || category === "milk") return "ice_cafe_latte";
+  if (
+    name.includes("주스") ||
+    category === "juice" ||
+    category === "ade" ||
+    category === "carbonated" ||
+    category === "energy"
+  ) {
+    return "orange_juice";
+  }
+  if (category === "tea") return "yuzu_tea";
+  if (category === "coffee") return "ice_americano";
+  if (category === "smoothie") return "matcha_frappe";
+
+  return "ice_americano";
+}
+
+function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
+  if (typeof raw !== "string") return "default";
+  const key = raw.trim().toLowerCase();
+  const aliasMap: Record<string, IngredientIconKey> = {
+    bean: "coffee",
+    beans: "coffee",
+    coffee_bean: "coffee",
+    matcha: "leaf",
+    tea_leaf: "leaf",
+  };
+  const mapped = aliasMap[key] ?? key;
+  return mapped in INGREDIENT_ICONS
+    ? (mapped as IngredientIconKey)
+    : "default";
+}
+
+function resolveCalendarIconKey(params: {
+  calendarIconKey?: unknown;
+  name?: string;
+  category?: string;
+  isWaterOnly?: boolean;
+}): IngredientIconKey {
+  const normalized = normalizeIngredientIconKey(params.calendarIconKey);
+  if (normalized !== "default") return normalized;
+
+  if (params.isWaterOnly) return "water";
+
+  const name = (params.name ?? "").toLowerCase();
+  const category = (params.category ?? "").toLowerCase();
+
+  if (name.includes("물") || category === "water") return "water";
+  if (
+    category === "coffee" ||
+    category === "latte" ||
+    name.includes("커피") ||
+    name.includes("라떼") ||
+    name.includes("아메리카노") ||
+    name.includes("에스프레소")
+  ) {
+    return "coffee";
+  }
+  if (
+    category === "tea" ||
+    category === "smoothie" ||
+    name.includes("말차") ||
+    name.includes("녹차") ||
+    name.includes("차")
+  ) {
+    return "leaf";
+  }
+  if (
+    category === "ade" ||
+    category === "juice" ||
+    name.includes("딸기") ||
+    name.includes("berry")
+  ) {
+    return "strawberry";
+  }
+
+  return "default";
+}
 
 function SelectModal({
   visible,
@@ -100,10 +226,14 @@ function SelectModal({
 
 const RecordCreateScreen = () => {
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
   // 검색/선택
   const [search, setSearch] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [quickPickOpen, setQuickPickOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [picked, setPicked] = useState<Item | null>(null);
+  const [recipeItems, setRecipeItems] = useState<Item[]>([]);
 
   // 폼 상태
   const [date, setDate] = useState<Date>(new Date());
@@ -129,23 +259,45 @@ const RecordCreateScreen = () => {
 
   const calendar = require("@/assets/tabs/calendar_inactive.png");
   const clock = require("@/assets/icons/etc/clock.png");
+  const searchIcon = require('@/assets/icons/etc/search.png');
 
-  // 더미데이터
-  const frequent: Item[] = [
-    { id: "1", name: "아이스 아메리카노" },
-    { id: "2", name: "물" },
-    { id: "3", name: "바닐라 라떼" },
-  ];
+  useEffect(() => {
+    const recipesRef = collection(db, "recipes");
+    const recipesQ = query(recipesRef, where("isPublic", "==", true));
 
-  const recent: Item[] = [
-    { id: "4", name: "말차 프라푸치노" },
-    { id: "5", name: "오렌지 주스" },
-  ];
+    const unsub = onSnapshot(recipesQ, (snap) => {
+      const rows = snap.docs.map((d) => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          name: (data.name as string) ?? "",
+          category: data.category as string | undefined,
+          normalizedName: data.normalizedName as string | undefined,
+          aliases: (data.aliases as string[] | undefined) ?? [],
+          searchKeywords: (data.searchKeywords as string[] | undefined) ?? [],
+          drinkIconKey: mapRecipeIconKeyToAppKey({
+            drinkIconKey: data.drinkIconKey as string | undefined,
+            name: data.name as string | undefined,
+            category: data.category as string | undefined,
+          }),
+          calendarIconKey: resolveCalendarIconKey({
+            calendarIconKey: data.calendarIconKey,
+            name: data.name as string | undefined,
+            category: data.category as string | undefined,
+            isWaterOnly: data.isWaterOnly as boolean | undefined,
+          }),
+          mlPerServing: data.mlPerServing as number | undefined,
+          caffeineMgPerServing: data.caffeineMgPerServing as number | undefined,
+          sugarGPerServing: data.sugarGPerServing as number | undefined,
+          isWaterOnly: data.isWaterOnly as boolean | undefined,
+        } satisfies Item;
+      }).filter((item) => item.name.trim().length > 0);
 
-  const unitLabel = useMemo(
-    () => UNIT_OPTIONS.find((o) => o.value === unit)?.label ?? "잔",
-    [unit],
-  );
+      setRecipeItems(rows);
+    });
+
+    return unsub;
+  }, []);
 
   const helperText = useMemo(() => {
     if (unit === "ml") return null;
@@ -156,7 +308,25 @@ const RecordCreateScreen = () => {
   const onPick = (item: Item) => {
     setPicked(item);
     setSearch(item.name);
-    setSearchOpen(false);
+    setSearchQuery(item.name);
+    setSearchModalOpen(false);
+    setQuickPickOpen(false);
+  };
+
+  const searchItems = useMemo(() => {
+    if (recipeItems.length > 0) return recipeItems;
+
+    const map = new Map<string, Item>();
+    [...FREQUENT_ITEMS, ...RECENT_ITEMS].forEach((item) => {
+      const key = item.name.trim().toLowerCase();
+      if (!map.has(key)) map.set(key, item);
+    });
+    return Array.from(map.values());
+  }, [recipeItems]);
+
+  const onSearch = () => {
+    setSearchQuery(search);
+    setSearchModalOpen(true);
   };
 
   const onSave = async () => {
@@ -168,63 +338,56 @@ const RecordCreateScreen = () => {
 
     setSaving(true);
     try {
-        const payload = buildEntryPayload({
-            drinkName: picked.name,
-            drinkId: undefined,
-            iconKey: undefined,
+      const payload = buildEntryPayload({
+        drinkName: picked.name,
+        drinkId: picked.id,
+        iconKey: resolveCalendarIconKey({
+          calendarIconKey: picked.calendarIconKey,
+          name: picked.name,
+          category: picked.category,
+          isWaterOnly: picked.isWaterOnly,
+        }),
+        mlPerServing: picked.mlPerServing,
+        caffeineMgPerServing: picked.caffeineMgPerServing,
+        sugarGPerServing: picked.sugarGPerServing,
+        isWaterOnly: picked.isWaterOnly,
 
-            date,
-            consumedAt,
+        date,
+        consumedAt,
 
-            unit: unit as 'cup' | 'ml',
-            amount: Number(servings),
+        unit: unit as "cup" | "ml",
+        amount: Number(servings),
 
-            memo,
-            brandLabel: brand,
-        });
+        memo,
+        brandLabel: brand,
+      });
 
-        await addEntry(payload);
-        setSaveDone(true);
+      await addEntry(payload);
+      setSaveDone(true);
     } catch (e: any) {
-        Alert.alert("저장 실패", String(e?.message ?? e));
+      Alert.alert("저장 실패", String(e?.message ?? e));
     } finally {
       setSaving(false);
     }
-    
   };
+
+  const handleFocusMemo = () => {
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.container}>
-        {/* 서치바(상단 고정) */}
-        <Pressable
-          onPress={() => setSearchOpen(true)}
-          style={styles.searchWrap}
-        >
-          <TextField
-            value={search}
-            onChangeText={setSearch}
-            placeholder="음료 검색"
-            placeholderTextColor={COLORS.semantic.textSecondary}
-            containerStyle={styles.searchInputContainer}
-            style={styles.searchInputText}
-            leftIcon={
-              <Ionicons
-                name="search"
-                size={18}
-                color={COLORS.semantic.textSecondary}
-              />
-            }
-            editable={false}
-            pointerEvents="none"
-          />
-        </Pressable>
-
         {/* Body */}
         <ScrollView
+          ref={scrollRef}
           style={styles.body}
           contentContainerStyle={styles.bodyContent}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
           {/* 날짜 */}
           <Text style={styles.sectionTitle}>날짜</Text>
@@ -237,14 +400,29 @@ const RecordCreateScreen = () => {
           </Pressable>
 
           {/* 음료 */}
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-            음료 이름
-          </Text>
-          <View style={styles.fieldRow}>
-            <Text style={styles.fieldTextMuted}>
-              {picked?.name ?? "검색창에서 음료를 선택해 주세요"}
+          <View style={styles.searchBar}>
+            <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
+              음료 이름
             </Text>
+            <Pressable
+              style={styles.quickBtn}
+              onPress={() => setQuickPickOpen(true)}
+              hitSlop={8}
+            >
+              <View style={styles.quickBtnRow}>
+                <Image source={clock} style={styles.icon} />
+                <Text style={styles.quickBtnText}>
+                  빠르게 불러오기
+                </Text>
+              </View>
+            </Pressable>
           </View>
+          <Pressable style={styles.fieldRow} onPress={onSearch}>
+            <Text style={styles.fieldTextMuted}>
+              {picked?.name ?? "음료를 검색해 주세요"}
+            </Text>
+           <Image source={searchIcon} style={styles.icon}/>
+          </Pressable>
 
           {/* 브랜드(선택) */}
           <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
@@ -318,20 +496,35 @@ const RecordCreateScreen = () => {
             placeholder="이 음료는 어땠나요?"
             style={styles.memo}
             multiline
+            onFocus={handleFocusMemo}
           />
         </ScrollView>
 
         {/* 저장 버튼 */}
         <View style={{ paddingHorizontal: 16, paddingVertical: 22 }}>
-          <AppButton label="저장" variant="primary" onPress={onSave} loading={saving} />
+          <AppButton
+            label="저장"
+            variant="primary"
+            onPress={onSave}
+            loading={saving}
+          />
         </View>
 
-        {/* 오버레이 + 저장 모달 */}
-        <DrinkSearchOverlay
-          visible={searchOpen}
-          onClose={() => setSearchOpen(false)}
-          frequent={frequent}
-          recent={recent}
+        {/* 검색/추천 모달 */}
+        <DrinkSearchModal
+          visible={searchModalOpen}
+          query={searchQuery}
+          items={searchItems}
+          onChangeQuery={setSearchQuery}
+          onPick={onPick}
+          onClose={() => setSearchModalOpen(false)}
+        />
+
+        <DrinkQuickPickModal
+          visible={quickPickOpen}
+          onClose={() => setQuickPickOpen(false)}
+          frequent={FREQUENT_ITEMS}
+          recent={RECENT_ITEMS}
           onPick={onPick}
         />
 
@@ -477,6 +670,12 @@ const styles = StyleSheet.create({
   searchWrap: {
     paddingHorizontal: 16,
     paddingTop: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  searchFieldWrap: {
+    flex: 1,
   },
   searchInputContainer: {
     height: 44,
@@ -492,6 +691,29 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textPrimary,
     paddingVertical: 0,
     textAlignVertical: "center",
+  },
+  quickBtn: {
+    height: 36,
+    
+    paddingHorizontal: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  quickBtnText: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+  },
+  searchBar: {
+    
+    flexDirection: "row",
+    justifyContent: 'space-between',
+    alignItems: "center",
+    gap: 20
   },
   body: {
     flex: 1,

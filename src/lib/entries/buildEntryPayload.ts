@@ -7,6 +7,10 @@ type BuildEntryInput = {
     drinkName: string;
     drinkId?: string | undefined;
     iconKey?: string;
+    mlPerServing?: number;
+    caffeineMgPerServing?: number;
+    sugarGPerServing?: number;
+    isWaterOnly?: boolean;
 
     date: Date;
     consumedAt: Date;
@@ -30,11 +34,24 @@ function buildEntryPayload(input: BuildEntryInput): Omit<EntryDoc, "createdAt" |
 
   const dateKey = toDateKey(input.date);
 
-  // 양 계산(1컵 = 200mL 고정)
+  // 양 계산(컵 단위는 레시피 serving 용량 우선, 없으면 200mL)
   const DEFAULT_ML_PER_CUP = 200;
-  const mlPerUnit = input.unit === 'cup' ? DEFAULT_ML_PER_CUP : 1;
+  const recipeMlPerServing = Number(input.mlPerServing ?? DEFAULT_ML_PER_CUP);
+  const safeRecipeMlPerServing = recipeMlPerServing > 0 ? recipeMlPerServing : DEFAULT_ML_PER_CUP;
+  const mlPerUnit = input.unit === 'cup' ? safeRecipeMlPerServing : 1;
   const totalMl = amount * mlPerUnit;
-  const isWaterOnly = drinkName === "물";
+  const isWaterOnly = input.isWaterOnly ?? (drinkName === "물");
+
+  // 영양은 레시피 1회분 기준으로 선형 스케일
+  const recipeServings = totalMl / safeRecipeMlPerServing;
+  const totalCaffeineMg = Math.max(
+    0,
+    Math.round(Number(input.caffeineMgPerServing ?? 0) * recipeServings),
+  );
+  const totalSugarG = Math.max(
+    0,
+    Math.round(Number(input.sugarGPerServing ?? 0) * recipeServings),
+  );
 
   const rawBrand = input.brandLabel?.trim() ?? '';
   const brandLabel = rawBrand.length ? rawBrand : null;
@@ -55,8 +72,8 @@ function buildEntryPayload(input: BuildEntryInput): Omit<EntryDoc, "createdAt" |
     mlPerUnit,
     totalMl,
 
-    totalCaffeineMg: 0,
-    totalSugarG: 0,
+    totalCaffeineMg,
+    totalSugarG,
 
     memo: input.memo?.trim() ? input.memo.trim() : null,
     brandLabel,

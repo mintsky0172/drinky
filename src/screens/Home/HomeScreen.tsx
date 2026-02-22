@@ -23,8 +23,7 @@ import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 import AppButton from "@/src/components/ui/AppButton";
 import TodayMemoCard from "@/src/components/home/TodayMemoCard";
-import { IconKey } from "@/src/constants/icons";
-import DrinkIcon from "@/src/components/common/DrinkIcon";
+import { INGREDIENT_ICONS, IngredientIconKey } from "@/src/constants/icons";
 import Toast from "react-native-toast-message";
 import IconPickerModal from "@/src/components/home/IconPickerModal";
 import {
@@ -41,6 +40,7 @@ import { db } from "@/src/lib/firebase";
 import { addDays, toDateKey, toKoreanDateLabel } from "@/src/lib/dateKey";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth } from "@/src/providers/AuthProvider";
+import IngredientIcon from "@/src/components/common/IngredientIcon";
 
 type SummaryCard = {
   label: "수분💧" | "카페인☕️" | "당류🍭";
@@ -79,6 +79,61 @@ function scoreForIcon(entry: { isWaterOnly?: boolean; totalMl?: number }) {
   const base = Number(entry.totalMl ?? 0);
   const weight = entry.isWaterOnly ? 0.7 : 1;
   return base * weight;
+}
+
+function normalizeIngredientIconKey(
+  raw: unknown,
+): IngredientIconKey {
+  if (typeof raw !== "string") return "default";
+  const key = raw.trim().toLowerCase();
+
+  const aliasMap: Record<string, IngredientIconKey> = {
+    bean: "coffee",
+    beans: "coffee",
+    coffee_bean: "coffee",
+    matcha: "leaf",
+    tea_leaf: "leaf",
+  };
+
+  const mapped = aliasMap[key] ?? key;
+  return mapped in INGREDIENT_ICONS
+    ? (mapped as IngredientIconKey)
+    : "default";
+}
+
+function inferIngredientIconFromEntry(entry: {
+  iconKey?: unknown;
+  calendarIconKey?: unknown;
+  drinkName?: unknown;
+  isWaterOnly?: unknown;
+}): IngredientIconKey {
+  const normalized = normalizeIngredientIconKey(
+    entry.iconKey ?? entry.calendarIconKey,
+  );
+  if (normalized !== "default") return normalized;
+
+  if (Boolean(entry.isWaterOnly)) return "water";
+
+  const name =
+    typeof entry.drinkName === "string" ? entry.drinkName.toLowerCase() : "";
+
+  if (name.includes("물")) return "water";
+  if (
+    name.includes("커피") ||
+    name.includes("라떼") ||
+    name.includes("아메리카노") ||
+    name.includes("에스프레소")
+  ) {
+    return "coffee";
+  }
+  if (name.includes("말차") || name.includes("녹차") || name.includes("차")) {
+    return "leaf";
+  }
+  if (name.includes("딸기") || name.includes("berry")) {
+    return "strawberry";
+  }
+
+  return "default";
 }
 
 function getLevelWater(value: number, goal: number): VariantLevelLabel {
@@ -189,9 +244,9 @@ const HomeScreen = () => {
 
   const [todayOneLine, setTodayOneLine] = useState("");
   const [goalsAchieved, setGoalsAchieved] = useState(false);
-  const [topIconKey, setTopIconKey] = useState<IconKey | null>(null);
-  const [overrideIconKey, setOverrideIconKey] = useState<IconKey | null>(null);
-  const todayIconKey = useMemo<IconKey>(
+  const [topIconKey, setTopIconKey] = useState<IngredientIconKey | null>(null);
+  const [overrideIconKey, setOverrideIconKey] = useState<IngredientIconKey | null>(null);
+  const todayIconKey = useMemo<IngredientIconKey>(
     () => overrideIconKey ?? topIconKey ?? "default",
     [overrideIconKey, topIconKey],
   );
@@ -283,9 +338,10 @@ const HomeScreen = () => {
           const data = snap.data() as any;
           setTodayOneLine(data.oneLine ?? "");
           setGoalsAchieved(Boolean(data.goalsAchieved));
-          const override =
-            (data.overrideIconKey as IconKey | undefined) ?? null;
-          setOverrideIconKey(override);
+          const overrideRaw = data.overrideIconKey;
+          setOverrideIconKey(
+            overrideRaw == null ? null : normalizeIngredientIconKey(overrideRaw),
+          );
         } else {
           setOverrideIconKey(null);
           setTodayOneLine("");
@@ -333,7 +389,7 @@ const HomeScreen = () => {
           caffeineMg: 0,
           sugarG: 0,
         };
-        const iconScores = new Map<IconKey, number>();
+        const iconScores = new Map<IngredientIconKey, number>();
 
         dailyEntryDocs.forEach((entryDoc) => {
           const e = entryDoc.data() as any;
@@ -360,7 +416,8 @@ const HomeScreen = () => {
             sugarG: nextTotals.sugarG + Number(e.totalSugarG ?? 0),
           };
 
-          const iconKey = (e.iconKey as IconKey) ?? "default";
+          // entries 스키마는 iconKey를 사용하고, 과거 데이터 호환을 위해 calendarIconKey도 fallback 처리
+          const iconKey = inferIngredientIconFromEntry(e);
           const prevIconScore = iconScores.get(iconKey) ?? 0;
           iconScores.set(iconKey, prevIconScore + scoreForIcon(e));
         });
@@ -382,7 +439,7 @@ const HomeScreen = () => {
         );
 
         // topIconKey 계산
-        let nextTopIconKey: IconKey | null = null;
+        let nextTopIconKey: IngredientIconKey | null = null;
         let nextTopIconScore = -1;
         iconScores.forEach((score, key) => {
           if (score > nextTopIconScore) {
@@ -444,7 +501,7 @@ const HomeScreen = () => {
   };
 
   /** 2) 아이콘 선택: 즉시 저장 */
-  const handleSelectIcon = async (key: IconKey) => {
+  const handleSelectIcon = async (key: IngredientIconKey) => {
     setIconPickerOpen(false);
     setOverrideIconKey(key);
 
@@ -620,7 +677,7 @@ const HomeScreen = () => {
         <Text style={styles.statusLine}>{summaryText}</Text>
         {/* 오늘의 한줄 */}
         <TodayMemoCard
-          icon={<DrinkIcon iconKey={todayIconKey} size={32} />}
+          icon={<IngredientIcon iconKey={todayIconKey} size={32} />}
           oneLine={todayOneLine}
           onPressIcon={() => setIconPickerOpen(true)}
           onChangeOneLine={handleChangeOneLine}

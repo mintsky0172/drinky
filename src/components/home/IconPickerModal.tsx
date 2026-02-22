@@ -1,19 +1,19 @@
 import { Pressable, StyleSheet, Text, View, Modal, FlatList } from 'react-native'
 import React from 'react'
-import { IconKey, ICONS } from '@/src/constants/icons';
-import DrinkIcon from '../common/DrinkIcon';
+import { IngredientIconKey, INGREDIENT_ICONS } from '@/src/constants/icons';
+import IngredientIcon from '../common/IngredientIcon';
 import { COLORS } from '@/src/constants/colors';
 import { TYPOGRAPHY } from '@/src/constants/typography';
 
 type Props = {
     visible: boolean;
-    selectedKey: IconKey;
-    onSelect: (key: IconKey) => void;
+    selectedKey: IngredientIconKey;
+    onSelect: (key: IngredientIconKey) => void;
     onClose: () => void;
     onResetToDefault?: () => void; // 선택 : 덮어쓰기 해제용
 };
 
-const ICON_KEYS: IconKey[] = Object.keys(ICONS) as IconKey[];
+const ICON_KEYS: IngredientIconKey[] = Object.keys(INGREDIENT_ICONS) as IngredientIconKey[];
 
 const IconPickerModal = ({
     visible,
@@ -52,7 +52,7 @@ const IconPickerModal = ({
                             style={[styles.cell, isSelected && styles.cellSelected]}
                         >
                             <View style={styles.iconCircle}>
-                                <DrinkIcon iconKey={item} size={34} />
+                                <IngredientIcon iconKey={item} size={34} />
                             </View>
                         </Pressable>
                     )

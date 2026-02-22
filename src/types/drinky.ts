@@ -7,7 +7,8 @@ export type Unit = "cup" | "ml";
 export type DrinkRecipe = {
     id: string;
     name: string;
-    iconKey: string;
+    drinkIconKey: string;
+    calendarIconKey: string;
     isWaterOnly: boolean; // 수분 합산 여부(순수 물만 true)
     baseMl: number; // 355, 473, 200 등
     caffeineMgPerBase: number; // baseMl 기준 카페인

@@ -48,3 +48,9 @@ firebase-debug.log
 .gitignore
  
 serviceAccountKey.json
+*.seed.json
+*.manual.json
+
+
+# Design source artifacts
+*.clip
