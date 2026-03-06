@@ -48,11 +48,35 @@ async function commitInChunks(docs: RecipeSeed[], chunkSize = 450) {
     });
 
     await batch.commit();
-    console.log(`✅ Uploaded ${Math.min(i + chunkSize, docs.length)}/${docs.length}`);
+    console.log(
+      `✅ Uploaded ${Math.min(i + chunkSize, docs.length)}/${docs.length}`,
+    );
   }
 }
 
-const serviceAccountPath = path.resolve(process.cwd(), "seed/serviceAccountKey.json");
+async function filterOnlyNewRecipes(
+  docs: RecipeSeed[],
+  chunkSize = 300,
+): Promise<{ newDocs: RecipeSeed[]; existingCount: number }> {
+  const existingIds = new Set<string>();
+
+  for (let i = 0; i < docs.length; i += chunkSize) {
+    const chunk = docs.slice(i, i + chunkSize);
+    const refs = chunk.map((recipe) => db.collection("recipes").doc(recipe.id));
+    const snaps = await db.getAll(...refs);
+    snaps.forEach((snap) => {
+      if (snap.exists) existingIds.add(snap.id);
+    });
+  }
+
+  const newDocs = docs.filter((recipe) => !existingIds.has(recipe.id));
+  return { newDocs, existingCount: existingIds.size };
+}
+
+const serviceAccountPath = path.resolve(
+  process.cwd(),
+  "seed/serviceAccountKey.json",
+);
 const serviceAccount = readJson<any>(serviceAccountPath);
 
 initializeApp({
@@ -62,20 +86,31 @@ initializeApp({
 const db = getFirestore();
 
 async function main() {
-  
-  const manualPath = path.resolve(process.cwd(), "seed/recipes.manual.json");
+  const manualPath = path.resolve(process.cwd(), "seed/brand/gongcha.json");
 
-  
   const manualRecipes = fs.existsSync(manualPath)
     ? readJson<RecipeSeed[]>(manualPath)
     : [];
-  const recipes = manualRecipes;
+  const recipes = mergeRecipes([], manualRecipes).filter(
+    (r) => typeof r?.id === "string" && r.id.trim().length > 0,
+  );
 
   console.log(
-    `Uploading ${recipes.length} recipes... manual: ${manualRecipes.length})`,
+    `Loaded ${recipes.length} recipes (manual only: ${manualRecipes.length})`,
   );
-  await commitInChunks(recipes);
-  console.log("🚀 Upload complete!");
+
+  const { newDocs, existingCount } = await filterOnlyNewRecipes(recipes);
+  console.log(
+    `New recipes: ${newDocs.length}, already existing: ${existingCount}`,
+  );
+
+  if (newDocs.length === 0) {
+    console.log("✅ Nothing to upload. All recipes already exist.");
+    return;
+  }
+
+  await commitInChunks(newDocs);
+  console.log(`🚀 Upload complete! Added ${newDocs.length} new recipes.`);
 }
 
 main().catch((e) => {

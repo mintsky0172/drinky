@@ -84,6 +84,7 @@ function Me() {
         >
           계정 탈퇴
         </AppText>
+        <AppText preset="caption" style={{ textAlign: "center" }} >본 앱은 특정 브랜드와 공식적으로 제휴되어 있지 않습니다. {"\n"} 메뉴 정보는 참고용입니다.</AppText>
       </View>
     </SafeAreaView>
   );

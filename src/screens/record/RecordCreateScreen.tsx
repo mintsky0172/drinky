@@ -23,13 +23,14 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
 import { addEntry } from "@/src/lib/entries/entriesApi";
 import { db } from "@/src/lib/firebase";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import {
   DRINK_ICONS,
   DrinkIconKey,
   INGREDIENT_ICONS,
   IngredientIconKey,
 } from "@/src/constants/icons";
+import { useAuth } from "@/src/providers/AuthProvider";
 
 type Item = {
   id: string;
@@ -44,6 +45,9 @@ type Item = {
   caffeineMgPerServing?: number;
   sugarGPerServing?: number;
   isWaterOnly?: boolean;
+  createdAtMs?: number;
+  popularityScore?: number;
+  globalPopularityScore?: number;
 };
 type Option = { value: string; label: string };
 
@@ -62,17 +66,6 @@ const SIZE_OPTIONS: Option[] = [
   { value: "M", label: "M" },
   { value: "L", label: "L" },
   { value: "XL", label: "XL" },
-];
-
-const FREQUENT_ITEMS: Item[] = [
-  { id: "1", name: "아이스 아메리카노", drinkIconKey: "ice_americano", calendarIconKey: "bean", mlPerServing: 355, caffeineMgPerServing: 120, sugarGPerServing: 0, isWaterOnly: false },
-  { id: "2", name: "물", calendarIconKey: "water", mlPerServing: 200, caffeineMgPerServing: 0, sugarGPerServing: 0, isWaterOnly: true },
-  { id: "3", name: "바닐라 라떼", drinkIconKey: "ice_cafe_latte", calendarIconKey: "bean", mlPerServing: 355, caffeineMgPerServing: 100, sugarGPerServing: 20, isWaterOnly: false },
-];
-
-const RECENT_ITEMS: Item[] = [
-  { id: "4", name: "말차 프라푸치노", drinkIconKey: "matcha_frappe", calendarIconKey: "leaf", mlPerServing: 473, caffeineMgPerServing: 80, sugarGPerServing: 45, isWaterOnly: false },
-  { id: "5", name: "오렌지 주스", drinkIconKey: "orange_juice", calendarIconKey: "default", mlPerServing: 355, caffeineMgPerServing: 0, sugarGPerServing: 30, isWaterOnly: false },
 ];
 
 function mapRecipeIconKeyToAppKey(params: {
@@ -107,6 +100,25 @@ function mapRecipeIconKeyToAppKey(params: {
   if (category === "smoothie") return "matcha_frappe";
 
   return "ice_americano";
+}
+
+function resolveDrinkIconKey(params: {
+  drinkIconKey?: string;
+  name?: string;
+  category?: string;
+  isWaterOnly?: boolean;
+}): DrinkIconKey {
+  if (params.drinkIconKey && params.drinkIconKey in DRINK_ICONS) {
+    return params.drinkIconKey as DrinkIconKey;
+  }
+  if (params.isWaterOnly || (params.name ?? "").includes("물")) {
+    return "water";
+  }
+  return mapRecipeIconKeyToAppKey({
+    drinkIconKey: params.drinkIconKey,
+    name: params.name,
+    category: params.category,
+  });
 }
 
 function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
@@ -226,6 +238,7 @@ function SelectModal({
 
 const RecordCreateScreen = () => {
   const router = useRouter();
+  const { user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
   // 검색/선택
   const [search, setSearch] = useState("");
@@ -234,6 +247,7 @@ const RecordCreateScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [picked, setPicked] = useState<Item | null>(null);
   const [recipeItems, setRecipeItems] = useState<Item[]>([]);
+  const [entryHistory, setEntryHistory] = useState<any[]>([]);
 
   // 폼 상태
   const [date, setDate] = useState<Date>(new Date());
@@ -290,6 +304,13 @@ const RecordCreateScreen = () => {
           caffeineMgPerServing: data.caffeineMgPerServing as number | undefined,
           sugarGPerServing: data.sugarGPerServing as number | undefined,
           isWaterOnly: data.isWaterOnly as boolean | undefined,
+          createdAtMs:
+            typeof (data.createdAt as any)?.toMillis === "function"
+              ? Number((data.createdAt as any).toMillis())
+              : 0,
+          globalPopularityScore: Number(
+            data.popularityCount ?? data.popularityScore ?? 0,
+          ),
         } satisfies Item;
       }).filter((item) => item.name.trim().length > 0);
 
@@ -298,6 +319,22 @@ const RecordCreateScreen = () => {
 
     return unsub;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setEntryHistory([]);
+      return;
+    }
+
+    const entriesRef = collection(db, "users", user.uid, "entries");
+    const entriesQ = query(entriesRef, orderBy("consumedAt", "desc"), limit(200));
+
+    const unsub = onSnapshot(entriesQ, (snap) => {
+      setEntryHistory(snap.docs.map((d) => d.data()));
+    });
+
+    return unsub;
+  }, [user]);
 
   const helperText = useMemo(() => {
     if (unit === "ml") return null;
@@ -314,15 +351,129 @@ const RecordCreateScreen = () => {
   };
 
   const searchItems = useMemo(() => {
-    if (recipeItems.length > 0) return recipeItems;
+    if (recipeItems.length > 0) {
+      const countByRecipeId = new Map<string, number>();
+      const countByName = new Map<string, number>();
 
-    const map = new Map<string, Item>();
-    [...FREQUENT_ITEMS, ...RECENT_ITEMS].forEach((item) => {
-      const key = item.name.trim().toLowerCase();
-      if (!map.has(key)) map.set(key, item);
+      entryHistory.forEach((entry) => {
+        const drinkId =
+          typeof entry?.drinkId === "string" ? entry.drinkId : undefined;
+        const drinkName = String(entry?.drinkName ?? "")
+          .trim()
+          .toLowerCase();
+
+        if (drinkId) {
+          countByRecipeId.set(drinkId, (countByRecipeId.get(drinkId) ?? 0) + 1);
+        }
+        if (drinkName) {
+          countByName.set(drinkName, (countByName.get(drinkName) ?? 0) + 1);
+        }
+      });
+
+      return recipeItems.map((item) => {
+        const byId = countByRecipeId.get(item.id) ?? 0;
+        const byName = countByName.get(item.name.trim().toLowerCase()) ?? 0;
+        const localPopularity = Math.max(byId, byName);
+        const globalPopularity = Number(item.globalPopularityScore ?? 0);
+        return {
+          ...item,
+          popularityScore:
+            globalPopularity > 0 ? globalPopularity : localPopularity,
+        };
+      });
+    }
+    return [];
+  }, [entryHistory, recipeItems]);
+
+  const { frequentItems, recentItems } = useMemo(() => {
+    const byRecipeId = new Map<string, Item>();
+    const byName = new Map<string, Item>();
+    recipeItems.forEach((item) => {
+      byRecipeId.set(item.id, item);
+      byName.set(item.name.trim().toLowerCase(), item);
     });
-    return Array.from(map.values());
-  }, [recipeItems]);
+
+    const getResolvedItem = (entry: any, index: number): Item | null => {
+      const drinkName = String(entry?.drinkName ?? "").trim();
+      if (!drinkName) return null;
+
+      const drinkId = typeof entry?.drinkId === "string" ? entry.drinkId : undefined;
+      const matched =
+        (drinkId ? byRecipeId.get(drinkId) : undefined) ??
+        byName.get(drinkName.toLowerCase());
+
+      const category = (entry?.category as string | undefined) ?? matched?.category;
+      const isWaterOnly = Boolean(entry?.isWaterOnly ?? matched?.isWaterOnly);
+      const drinkIconKey = resolveDrinkIconKey({
+        drinkIconKey: matched?.drinkIconKey ?? (entry?.drinkIconKey as string | undefined),
+        name: matched?.name ?? drinkName,
+        category,
+        isWaterOnly,
+      });
+
+      return {
+        id: matched?.id ?? drinkId ?? `history-${index}-${drinkName}`,
+        name: matched?.name ?? drinkName,
+        category,
+        normalizedName: matched?.normalizedName,
+        aliases: matched?.aliases,
+        searchKeywords: matched?.searchKeywords,
+        drinkIconKey,
+        calendarIconKey: resolveCalendarIconKey({
+          calendarIconKey: entry?.iconKey ?? matched?.calendarIconKey,
+          name: matched?.name ?? drinkName,
+          category,
+          isWaterOnly,
+        }),
+        mlPerServing: matched?.mlPerServing,
+        caffeineMgPerServing: matched?.caffeineMgPerServing,
+        sugarGPerServing: matched?.sugarGPerServing,
+        isWaterOnly,
+      };
+    };
+
+    const recent: Item[] = [];
+    const seenRecent = new Set<string>();
+    entryHistory.forEach((entry, index) => {
+      const item = getResolvedItem(entry, index);
+      if (!item) return;
+      const key = item.id || item.name.trim().toLowerCase();
+      if (seenRecent.has(key)) return;
+      seenRecent.add(key);
+      recent.push(item);
+    });
+
+    const countMap = new Map<string, { item: Item; count: number; latestMs: number }>();
+    entryHistory.forEach((entry, index) => {
+      const item = getResolvedItem(entry, index);
+      if (!item) return;
+      const key = item.id || item.name.trim().toLowerCase();
+      const consumedAtMs =
+        typeof entry?.consumedAt?.toMillis === "function"
+          ? Number(entry.consumedAt.toMillis())
+          : 0;
+
+      const prev = countMap.get(key);
+      if (!prev) {
+        countMap.set(key, { item, count: 1, latestMs: consumedAtMs });
+        return;
+      }
+      prev.count += 1;
+      prev.latestMs = Math.max(prev.latestMs, consumedAtMs);
+    });
+
+    const frequent = Array.from(countMap.values())
+      .sort((a, b) => {
+        if (b.count !== a.count) return b.count - a.count;
+        return b.latestMs - a.latestMs;
+      })
+      .map((v) => v.item);
+
+    return {
+      frequentItems: frequent.slice(0, 8),
+      recentItems: recent.slice(0, 12),
+    };
+  }, [entryHistory, recipeItems]);
 
   const onSearch = () => {
     setSearchQuery(search);
@@ -523,8 +674,8 @@ const RecordCreateScreen = () => {
         <DrinkQuickPickModal
           visible={quickPickOpen}
           onClose={() => setQuickPickOpen(false)}
-          frequent={FREQUENT_ITEMS}
-          recent={RECENT_ITEMS}
+          frequent={frequentItems}
+          recent={recentItems}
           onPick={onPick}
         />
 

@@ -9,9 +9,13 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
+    "icons:gen": "ts-node scripts/generateDrinkIcons.ts",
     "seed:recipes:gen": "ts-node seed/generateRecipes.ts",
     "seed:recipes:up": "ts-node seed/uploadRecipes.ts",
-    "seed:recipes": "npm run seed:recipes:gen && npm run seed:recipes:up"
+    "seed:recipes": "npm run seed:recipes:gen && npm run seed:recipes:up",
+    "seed:popularity:sync": "ts-node seed/syncRecipePopularity.ts",
+     "seed:recipes:validate": "ts-node seed/validateRecipes.ts",
+     "seed:recipes:safe": "npm run seed:recipes:validate && npm run seed:recipes:up"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

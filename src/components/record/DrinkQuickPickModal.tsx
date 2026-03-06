@@ -58,7 +58,14 @@ const DrinkQuickPickModal = ({
                 }
                 size={32}
               />
-              <Text style={styles.rowText}>{item.name}</Text>
+              <Text
+                style={styles.rowText}
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                lineBreakStrategyIOS="hangul-word"
+              >
+                {item.name}
+              </Text>
             </Pressable>
           )}
         />
@@ -107,6 +114,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
   },
-  rowText: { ...TYPOGRAPHY.preset.body, color: COLORS.semantic.textPrimary },
+  rowText: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+    flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
+  },
   sep: { height: 1, backgroundColor: COLORS.ui.border },
 });

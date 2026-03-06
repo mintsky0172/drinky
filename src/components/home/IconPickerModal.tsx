@@ -4,6 +4,7 @@ import { IngredientIconKey, INGREDIENT_ICONS } from '@/src/constants/icons';
 import IngredientIcon from '../common/IngredientIcon';
 import { COLORS } from '@/src/constants/colors';
 import { TYPOGRAPHY } from '@/src/constants/typography';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Props = {
     visible: boolean;
@@ -24,47 +25,49 @@ const IconPickerModal = ({
 }: Props) => {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        {/* 오버레이 */}
-        <Pressable style={styles.overlay} onPress={onClose} />
+      <Pressable style={styles.overlay} onPress={onClose} />
 
-        {/* 아래쪽 패널 */}
+      <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
         <View style={styles.sheet}>
-            <View style={styles.headerRow}>
-                <Text style={styles.title}>대표 아이콘 선택</Text>
+          <View style={styles.headerRow}>
+            <Text style={styles.title}>대표 아이콘 선택</Text>
 
-                <Pressable onPress={onClose} hitSlop={10}>
-                    <Text style={styles.closeText}>닫기</Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Text style={styles.closeText}>닫기</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.subTitle}>오늘을 가장 잘 나타내는 아이콘은 무엇인가요?</Text>
+
+          <FlatList
+            data={ICON_KEYS}
+            keyExtractor={(k) => k}
+            numColumns={4}
+            style={styles.gridList}
+            contentContainerStyle={styles.grid}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item}) => {
+              const isSelected = item === selectedKey;
+              return (
+                <Pressable
+                  onPress={() => onSelect(item)}
+                  style={[styles.cell, isSelected && styles.cellSelected]}
+                >
+                  <View style={styles.iconCircle}>
+                    <IngredientIcon iconKey={item} size={34} />
+                  </View>
                 </Pressable>
-            </View>
+              )
+            }}
+          />
 
-            <Text style={styles.subTitle}>오늘을 가장 잘 나타내는 아이콘은 무엇인가요?</Text>
-
-            <FlatList
-                data={ICON_KEYS}
-                keyExtractor={(k) => k}
-                numColumns={4}
-                contentContainerStyle={styles.grid}
-                renderItem={({ item}) => {
-                    const isSelected = item === selectedKey;
-                    return (
-                        <Pressable
-                            onPress={() => onSelect(item)}
-                            style={[styles.cell, isSelected && styles.cellSelected]}
-                        >
-                            <View style={styles.iconCircle}>
-                                <IngredientIcon iconKey={item} size={34} />
-                            </View>
-                        </Pressable>
-                    )
-                }}
-            />
-
-            {onResetToDefault && (
-                <Pressable style={styles.resetBtn} onPress={onResetToDefault}>
-                    <Text style={styles.resetText}>자동(기본)으로 되돌리기</Text>
-                </Pressable>
-            )}
+          {onResetToDefault && (
+            <Pressable style={styles.resetBtn} onPress={onResetToDefault}>
+              <Text style={styles.resetText}>자동(기본)으로 되돌리기</Text>
+            </Pressable>
+          )}
         </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -77,11 +80,13 @@ const styles = StyleSheet.create({
         ...StyleSheet.absoluteFillObject,
         backgroundColor: COLORS.ui.overlayBrown40
     },
+    safeArea: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: "flex-end",
+    },
     sheet: {
-        position: 'absolute',
-        left: 16,
-        right: 16,
-        bottom: 18,
+        marginHorizontal: 16,
+        marginBottom: 12,
         borderRadius: 20,
         paddingHorizontal: 16,
         paddingTop: 14,
@@ -89,6 +94,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.ui.border,
         backgroundColor: COLORS.base.warmBeige,
+        maxHeight: "78%",
+    },
+    gridList: {
+        flexGrow: 0,
     },
     headerRow: {
         flexDirection: 'row',

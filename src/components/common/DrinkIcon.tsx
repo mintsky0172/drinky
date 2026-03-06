@@ -21,6 +21,6 @@ export default DrinkIcon;
 
 const styles = StyleSheet.create({
     image: {
-        borderRadius: 999,
+        borderRadius: 0,
     }
 });
