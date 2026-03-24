@@ -566,7 +566,10 @@ const HomeScreen = () => {
   };
 
   const onPressWrite = () => {
-    router.push("/record/create");
+    router.push({
+      pathname: "/record/create",
+      params: { date: todayKey },
+    });
   };
 
   const handleFocusOneLine = () => {

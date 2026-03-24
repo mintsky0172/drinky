@@ -86,7 +86,7 @@ initializeApp({
 const db = getFirestore();
 
 async function main() {
-  const manualPath = path.resolve(process.cwd(), "seed/brand/gongcha.json");
+  const manualPath = path.resolve(process.cwd(), "seed/brand/oozy.json");
 
   const manualRecipes = fs.existsSync(manualPath)
     ? readJson<RecipeSeed[]>(manualPath)

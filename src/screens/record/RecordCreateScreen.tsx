@@ -18,7 +18,7 @@ import DrinkSearchModal from "@/src/components/record/DrinkSearchModal";
 import DrinkQuickPickModal from "@/src/components/record/DrinkQuickPickModal";
 import SaveResultModal from "@/src/components/record/SaveResultModal";
 import { TYPOGRAPHY } from "@/src/constants/typography";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
 import { addEntry } from "@/src/lib/entries/entriesApi";
@@ -55,6 +55,39 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const formatDateDot = (d: Date) =>
   `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
 const formatTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+function parseDateParam(value: unknown) {
+  if (typeof value !== "string") return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+  const day = Number(match[3]);
+  const parsed = new Date(year, monthIndex, day);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== monthIndex ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function mergeDatePart(datePart: Date, timePart: Date) {
+  return new Date(
+    datePart.getFullYear(),
+    datePart.getMonth(),
+    datePart.getDate(),
+    timePart.getHours(),
+    timePart.getMinutes(),
+    timePart.getSeconds(),
+    timePart.getMilliseconds(),
+  );
+}
 
 const UNIT_OPTIONS: Option[] = [
   { value: "cup", label: "잔" },
@@ -238,8 +271,13 @@ function SelectModal({
 
 const RecordCreateScreen = () => {
   const router = useRouter();
+  const params = useLocalSearchParams<{ date?: string }>();
   const { user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
+  const initialSelectedDate = useMemo(
+    () => parseDateParam(params.date) ?? new Date(),
+    [params.date],
+  );
   // 검색/선택
   const [search, setSearch] = useState("");
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -250,8 +288,10 @@ const RecordCreateScreen = () => {
   const [entryHistory, setEntryHistory] = useState<any[]>([]);
 
   // 폼 상태
-  const [date, setDate] = useState<Date>(new Date());
-  const [consumedAt, setConsumedAt] = useState<Date>(new Date());
+  const [date, setDate] = useState<Date>(initialSelectedDate);
+  const [consumedAt, setConsumedAt] = useState<Date>(() =>
+    mergeDatePart(initialSelectedDate, new Date()),
+  );
 
   const [brand, setBrand] = useState<string>("");
 
@@ -335,6 +375,13 @@ const RecordCreateScreen = () => {
 
     return unsub;
   }, [user]);
+
+  useEffect(() => {
+    const nextDate = parseDateParam(params.date);
+    if (!nextDate) return;
+    setDate(nextDate);
+    setConsumedAt((prev) => mergeDatePart(nextDate, prev));
+  }, [params.date]);
 
   const helperText = useMemo(() => {
     if (unit === "ml") return null;
@@ -719,7 +766,10 @@ const RecordCreateScreen = () => {
                     display="spinner"
                     style={styles.picker}
                     onChange={(_, selected) => {
-                      if (selected) setDate(selected);
+                      if (selected) {
+                        setDate(selected);
+                        setConsumedAt((prev) => mergeDatePart(selected, prev));
+                      }
                     }}
                   />
                 </View>
@@ -771,7 +821,10 @@ const RecordCreateScreen = () => {
                 display="default"
                 onChange={(_, selected) => {
                   setDatePickerOpen(false);
-                  if (selected) setDate(selected);
+                  if (selected) {
+                    setDate(selected);
+                    setConsumedAt((prev) => mergeDatePart(selected, prev));
+                  }
                 }}
               />
             )}

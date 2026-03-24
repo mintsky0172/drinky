@@ -57,7 +57,9 @@ export const INGREDIENT_ICONS = {
   tomato: require('@/assets/icons/ingredients/tomato.png'),
   pistachio: require('@/assets/icons/ingredients/pistachio.png'),
   corn: require('@/assets/icons/ingredients/corn.png'),
-  watermelon: require('@/assets/icons/ingredients/watermelon.png')
+  watermelon: require('@/assets/icons/ingredients/watermelon.png'),
+  persimmon: require('@/assets/icons/ingredients/persimmon.png'),
+  ginger: require('@/assets/icons/ingredients/ginger.png')
 };
 
 export type IngredientIconKey = keyof typeof INGREDIENT_ICONS;

@@ -50,7 +50,9 @@ firebase-debug.log
 serviceAccountKey.json
 *.seed.json
 *.manual.json
+seed/brand/*.json
 
 
 # Design source artifacts
 *.clip
+ 
