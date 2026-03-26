@@ -1,12 +1,1009 @@
-import React from "react";
-import { View, Text } from "react-native";
+import AppText from "@/src/components/ui/AppText";
+import { COLORS } from "@/src/constants/colors";
+import {
+  DRINK_ICONS,
+  type DrinkIconKey,
+  INGREDIENT_ICONS,
+  type IngredientIconKey,
+} from "@/src/constants/icons";
+import { TYPOGRAPHY } from "@/src/constants/typography";
+import {
+  addMonths,
+  buildMonthCells,
+  DAY_LABELS,
+  getMonthLabel,
+  getMonthRange,
+  isSameDay,
+  toDateKey,
+} from "@/src/lib/calendar/calendarUtils";
+import { db } from "@/src/lib/firebase";
+import { useAuth } from "@/src/providers/AuthProvider";
+import { Ionicons } from "@expo/vector-icons";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import IngredientIcon from "@/src/components/common/IngredientIcon";
+import DrinkIcon from "@/src/components/common/DrinkIcon";
+
+type EntryRecord = {
+  id: string;
+  dateKey: string;
+  drinkName: string;
+  category?: string;
+  totalMl?: number;
+  totalCaffeineMg: number;
+  totalSugarG: number;
+  isWaterOnly: boolean;
+  drinkId?: string | null;
+  drinkIconKey?: string | null;
+  iconKey?: string | null;
+  calendarIconKey?: string | null;
+  unit: "cup" | "ml";
+  servings?: number;
+};
+
+type RecipeLookupItem = {
+  id: string;
+  name: string;
+  drinkIconKey: DrinkIconKey;
+};
+
+type DayTotals = {
+  waterMl: number;
+  caffeineMg: number;
+  sugarG: number;
+};
+
+type DaySummaryRecord = {
+  dateKey: string;
+  oneLine: string;
+  overrideIconKey?: string | null;
+};
+
+type CalendarDayMeta = {
+  iconKey: IngredientIconKey | null;
+  oneLine: string;
+};
+
+const EMPTY_TOTALS: DayTotals = {
+  waterMl: 0,
+  caffeineMg: 0,
+  sugarG: 0,
+};
+
+function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
+  if (typeof raw !== "string") return "default";
+  const key = raw.trim().toLowerCase();
+
+  const aliasMap: Record<string, IngredientIconKey> = {
+    bean: "coffee",
+    beans: "coffee",
+    coffee_bean: "coffee",
+    matcha: "leaf",
+    tea_leaf: "leaf",
+  };
+
+  const mapped = aliasMap[key] ?? key;
+  return mapped in INGREDIENT_ICONS ? (mapped as IngredientIconKey) : "default";
+}
+
+function inferIngredientIconFromEntry(entry: {
+  iconKey?: unknown;
+  calendarIconKey?: unknown;
+  drinkName?: unknown;
+  isWaterOnly?: unknown;
+}): IngredientIconKey {
+  const normalized = normalizeIngredientIconKey(
+    entry.iconKey ?? entry.calendarIconKey,
+  );
+  if (normalized !== "default") return normalized;
+
+  if (Boolean(entry.isWaterOnly)) return "water";
+
+  const name =
+    typeof entry.drinkName === "string" ? entry.drinkName.toLowerCase() : "";
+
+  if (name.includes("물")) return "water";
+  if (
+    name.includes("커피") ||
+    name.includes("라떼") ||
+    name.includes("아메리카노") ||
+    name.includes("에스프레소")
+  ) {
+    return "coffee";
+  }
+  if (name.includes("말차") || name.includes("녹차") || name.includes("차")) {
+    return "leaf";
+  }
+  if (name.includes("딸기") || name.includes("berry")) {
+    return "strawberry";
+  }
+
+  return "default";
+}
+
+function mapRecipeIconKeyToAppKey(params: {
+  drinkIconKey?: string | null;
+  name?: string;
+  category?: string;
+}): DrinkIconKey {
+  const rawKey = params.drinkIconKey ?? "";
+  if (rawKey in DRINK_ICONS) return rawKey as DrinkIconKey;
+
+  const name = (params.name ?? "").toLowerCase();
+  const category = (params.category ?? "").toLowerCase();
+
+  if (name.includes("밀크티")) return "ice_milk_tea";
+  if (name.includes("말차")) {
+    if (name.includes("프라푸치노") || category === "smoothie")
+      return "matcha_frappe";
+    if (name.includes("아이스")) return "ice_matcha_latte";
+    return "matcha_latte";
+  }
+  if (name.includes("라떼") || category === "latte" || category === "milk") {
+    return "ice_cafe_latte";
+  }
+  if (
+    name.includes("주스") ||
+    category === "juice" ||
+    category === "ade" ||
+    category === "carbonated" ||
+    category === "energy"
+  ) {
+    return "orange_juice";
+  }
+  if (category === "tea") return "yuzu_tea";
+  if (category === "coffee") return "ice_americano";
+  if (category === "smoothie") return "matcha_frappe";
+
+  return "ice_americano";
+}
+
+function resolveDrinkIconKey(params: {
+  drinkIconKey?: string | null;
+  name?: string;
+  category?: string;
+  isWaterOnly?: boolean;
+}): DrinkIconKey {
+  if (params.drinkIconKey && params.drinkIconKey in DRINK_ICONS) {
+    return params.drinkIconKey as DrinkIconKey;
+  }
+  if (params.isWaterOnly || (params.name ?? "").includes("물")) {
+    return "water";
+  }
+  return mapRecipeIconKeyToAppKey({
+    drinkIconKey: params.drinkIconKey,
+    name: params.name,
+    category: params.category,
+  });
+}
 
 function Calendar() {
+  const { user, initializing } = useAuth();
+
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const [entriesByDateKey, setEntriesByDateKey] = useState<
+    Record<string, EntryRecord[]>
+  >({});
+  const [summariesByDateKey, setSummariesByDateKey] = useState<
+    Record<string, DaySummaryRecord>
+  >({});
+  const [recipesById, setRecipesById] = useState<
+    Record<string, RecipeLookupItem>
+  >({});
+  const [recipesByName, setRecipesByName] = useState<
+    Record<string, RecipeLookupItem>
+  >({});
+
+  const monthLabel = useMemo(() => getMonthLabel(currentMonth), [currentMonth]);
+
+  const cells = useMemo(() => buildMonthCells(currentMonth), [currentMonth]);
+
+  const monthRange = useMemo(() => getMonthRange(currentMonth), [currentMonth]);
+
+  const selectedDateKey = useMemo(
+    () => toDateKey(selectedDate),
+    [selectedDate],
+  );
+
+  useEffect(() => {
+    const recipesRef = collection(db, "recipes");
+    const recipesQ = query(recipesRef, where("isPublic", "==", true));
+
+    const unsubscribe = onSnapshot(recipesQ, (snapshot) => {
+      const nextById: Record<string, RecipeLookupItem> = {};
+      const nextByName: Record<string, RecipeLookupItem> = {};
+
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data() as {
+          name?: string;
+          category?: string;
+          drinkIconKey?: string;
+        };
+
+        const name = (data.name ?? "").trim();
+        if (!name) return;
+
+        const recipe: RecipeLookupItem = {
+          id: docSnap.id,
+          name,
+          drinkIconKey: mapRecipeIconKeyToAppKey({
+            drinkIconKey: data.drinkIconKey,
+            name,
+            category: data.category,
+          }),
+        };
+
+        nextById[recipe.id] = recipe;
+        nextByName[name.toLowerCase()] = recipe;
+      });
+
+      setRecipesById(nextById);
+      setRecipesByName(nextByName);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (initializing) return;
+    if (!user) {
+      setEntriesByDateKey({});
+      return;
+    }
+
+    const entriesRef = collection(db, "users", user.uid, "entries");
+    const q = query(
+      entriesRef,
+      where("dateKey", ">=", monthRange.startKey),
+      where("dateKey", "<", monthRange.endKey),
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const nextMap: Record<string, EntryRecord[]> = {};
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as Omit<EntryRecord, "id">;
+          const entry: EntryRecord = {
+            id: docSnap.id,
+            dateKey: data.dateKey,
+            drinkName: data.drinkName ?? "알 수 없는 음료",
+            category: data.category,
+            totalMl: Number(data.totalMl ?? 0),
+            totalCaffeineMg: Number(data.totalCaffeineMg ?? 0),
+            totalSugarG: Number(data.totalSugarG ?? 0),
+            isWaterOnly: Boolean(data.isWaterOnly),
+            drinkId: data.drinkId ?? null,
+            drinkIconKey: data.drinkIconKey ?? null,
+            iconKey: data.iconKey ?? null,
+            calendarIconKey: data.calendarIconKey,
+            unit: data.unit,
+            servings: Number(data.servings ?? 0),
+          };
+
+          if (!nextMap[entry.dateKey]) {
+            nextMap[entry.dateKey] = [];
+          }
+          nextMap[entry.dateKey].push(entry);
+        });
+
+        setEntriesByDateKey(nextMap);
+      },
+      () => {
+        setEntriesByDateKey({});
+      },
+    );
+    return () => unsubscribe();
+  }, [user, initializing, monthRange.startKey, monthRange.endKey]);
+
+  useEffect(() => {
+    if (initializing) return;
+    if (!user) {
+      setSummariesByDateKey({});
+      return;
+    }
+
+    const summariesRef = collection(db, "users", user.uid, "dailySummaries");
+    const q = query(
+      summariesRef,
+      where("dateKey", ">=", monthRange.startKey),
+      where("dateKey", "<", monthRange.endKey),
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const nextMap: Record<string, DaySummaryRecord> = {};
+
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data() as Partial<DaySummaryRecord>;
+          const dateKey = data.dateKey ?? docSnap.id;
+
+          nextMap[dateKey] = {
+            dateKey,
+            oneLine: data.oneLine ?? "",
+            overrideIconKey: data.overrideIconKey ?? null,
+          };
+        });
+
+        setSummariesByDateKey(nextMap);
+      },
+      () => {
+        setSummariesByDateKey({});
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user, initializing, monthRange.startKey, monthRange.endKey]);
+
+  const selectedEntries = useMemo(
+    () => entriesByDateKey[selectedDateKey] ?? [],
+    [entriesByDateKey, selectedDateKey],
+  );
+
+  const selectedTotals = useMemo(() => {
+    return selectedEntries.reduce<DayTotals>((acc, entry) => {
+      const ml = Number(entry.totalMl ?? 0);
+      const caffeine = Number(entry.totalCaffeineMg ?? 0);
+      const sugar = Number(entry.totalSugarG ?? 0);
+
+      return {
+        waterMl: acc.waterMl + (entry.isWaterOnly ? ml : 0),
+        caffeineMg: acc.caffeineMg + caffeine,
+        sugarG: acc.sugarG + sugar,
+      };
+    }, EMPTY_TOTALS);
+  }, [selectedEntries]);
+
+  const monthTotals = useMemo(() => {
+    const allEntries = Object.values(entriesByDateKey).flat();
+    const activeDays = Object.values(entriesByDateKey).filter(
+      (entries) => entries.length > 0,
+    ).length;
+
+    const totals = allEntries.reduce(
+      (acc, entry) => {
+        const ml = Number(entry.totalMl ?? 0);
+        const caffeine = Number(entry.totalCaffeineMg ?? 0);
+        const sugar = Number(entry.totalSugarG ?? 0);
+
+        acc.entryCount += 1;
+        acc.waterMl += entry.isWaterOnly ? ml : 0;
+        acc.caffeineMg += caffeine;
+        acc.sugarG += sugar;
+
+        return acc;
+      },
+      {
+        entryCount: 0,
+        waterMl: 0,
+        caffeineMg: 0,
+        sugarG: 0,
+      },
+    );
+
+    const divisor = activeDays > 0 ? activeDays : 1;
+
+    return {
+      ...totals,
+      activeDays,
+      avgWaterMl: Math.round(totals.waterMl / divisor),
+      avgCaffeineMg: Math.round(totals.caffeineMg / divisor),
+      avgSugarG: Math.round(totals.sugarG / divisor),
+    };
+  }, [entriesByDateKey]);
+
+  const selectedEntriesWithIcons = useMemo(
+    () =>
+      selectedEntries.map((entry) => {
+        const matchedRecipe =
+          (entry.drinkId ? recipesById[entry.drinkId] : undefined) ??
+          recipesByName[entry.drinkName.trim().toLowerCase()];
+
+        return {
+          ...entry,
+          resolvedDrinkIconKey: resolveDrinkIconKey({
+            drinkIconKey: matchedRecipe?.drinkIconKey ?? entry.drinkIconKey,
+            name: matchedRecipe?.name ?? entry.drinkName,
+            category: entry.category,
+            isWaterOnly: entry.isWaterOnly,
+          }),
+        };
+      }),
+    [selectedEntries, recipesById, recipesByName],
+  );
+
+  const calendarMetaByDateKey = useMemo<Record<string, CalendarDayMeta>>(() => {
+    const result: Record<string, CalendarDayMeta> = {};
+
+    const allDateKeys = new Set([
+      ...Object.keys(entriesByDateKey),
+      ...Object.keys(summariesByDateKey),
+    ]);
+
+    allDateKeys.forEach((dateKey) => {
+      const entries = entriesByDateKey[dateKey] ?? [];
+      const summary = summariesByDateKey[dateKey];
+
+      const overrideKey = summary?.overrideIconKey
+        ? normalizeIngredientIconKey(summary.overrideIconKey)
+        : null;
+
+      let computedIconKey: IngredientIconKey | null = null;
+
+      if (!overrideKey) {
+        const iconScores = new Map<IngredientIconKey, number>();
+
+        entries.forEach((entry) => {
+          const key = inferIngredientIconFromEntry(entry);
+          const ml = Number(entry.totalMl ?? 0);
+          const weight = entry.isWaterOnly ? 0.7 : 1;
+          const score = ml * weight;
+
+          iconScores.set(key, (iconScores.get(key) ?? 0) + score);
+        });
+
+        let max = -1;
+        iconScores.forEach((score, key) => {
+          if (score > max) {
+            max = score;
+            computedIconKey = key;
+          }
+        });
+      }
+
+      result[dateKey] = {
+        iconKey: overrideKey ?? computedIconKey ?? null,
+        oneLine: summary?.oneLine ?? "",
+      };
+    });
+    return result;
+  }, [entriesByDateKey, summariesByDateKey]);
+
+  const selectedOneLine = useMemo(
+    () => calendarMetaByDateKey[selectedDateKey]?.oneLine ?? "",
+    [calendarMetaByDateKey, selectedDateKey],
+  );
+
   return (
-    <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-      <Text>Calendar</Text>
-    </View>
+    <SafeAreaView style={styles.safe}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 헤더 */}
+        <View style={styles.header}>
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => setCurrentMonth((prev) => addMonths(prev, -1))}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={20}
+              color={COLORS.semantic.textPrimary}
+            />
+          </Pressable>
+
+          <AppText style={styles.headerTitle}>{monthLabel}</AppText>
+
+          <Pressable
+            style={styles.iconButton}
+            onPress={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={COLORS.semantic.textPrimary}
+            />
+          </Pressable>
+        </View>
+
+        {/* 요일 */}
+        <View style={styles.weekRow}>
+          {DAY_LABELS.map((label) => (
+            <View key={label} style={styles.weekCell}>
+              <AppText
+                style={[
+                  styles.weekText,
+                  label === "일" && styles.sundayText,
+                  label === "토" && styles.saturdayText,
+                ]}
+              >
+                {label}
+              </AppText>
+            </View>
+          ))}
+        </View>
+
+        {/* 날짜 그리드 */}
+        <View style={styles.grid}>
+          {cells.map((cell) => {
+            const isSelected = isSameDay(cell.date, selectedDate);
+            const dayEntries = entriesByDateKey[cell.dateKey] ?? [];
+            const dayMeta = calendarMetaByDateKey[cell.dateKey];
+            const iconKey = dayMeta?.iconKey ?? null;
+
+            return (
+              <Pressable
+                key={cell.dateKey}
+                style={styles.dayCell}
+                onPress={() => setSelectedDate(cell.date)}
+              >
+                <View
+                  style={[
+                    styles.dayInner,
+                    cell.isToday && styles.todayCell,
+                    isSelected && styles.selectedCell,
+                  ]}
+                >
+                  <AppText
+                    style={[
+                      styles.dayText,
+                      !cell.inCurrentMonth && styles.outsideMonthText,
+                      cell.isToday && styles.todayText,
+                      isSelected && styles.selectedText,
+                      iconKey && styles.dayTextHidden,
+                    ]}
+                  >
+                    {cell.date.getDate()}
+                  </AppText>
+
+                  <View style={styles.iconSlot}>
+                    {iconKey ? (
+                      <IngredientIcon iconKey={iconKey} size={30} />
+                    ) : null}
+
+                    {dayEntries.length > 1 ? (
+                      <View style={styles.countBadge}>
+                        <AppText style={styles.countBadgeText}>
+                          {dayEntries.length}
+                        </AppText>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {/* 월간 요약 */}
+        <View style={styles.monthSummaryCard}>
+          <View style={styles.monthSummaryHeader}>
+            <View>
+              <AppText style={styles.monthSummaryEyebrow}>
+                MONTHLY OVERVIEW
+              </AppText>
+              <AppText style={styles.monthSummaryTitle}>이번 달 요약</AppText>
+            </View>
+
+            <View style={styles.monthBadge}>
+              <AppText style={styles.monthBadgeText}>기록 수: {monthTotals.entryCount.toLocaleString()}개
+              </AppText>
+              
+            </View>
+          </View>
+
+          <View style={styles.monthSummaryGrid}>
+            
+
+            <View style={[styles.metricCard, styles.metricCardBlue]}>
+              <AppText style={styles.metricValue}>
+                {monthTotals.avgWaterMl.toLocaleString()} mL
+              </AppText>
+              <AppText style={styles.metricLabel}>일평균{'\n'}수분💧</AppText>
+            </View>
+
+            <View style={[styles.metricCard, styles.metricCardBrown]}>
+              <AppText style={styles.metricValue}>
+                {monthTotals.avgCaffeineMg.toLocaleString()} mg
+              </AppText>
+              <AppText style={styles.metricLabel}>일평균{'\n'}카페인☕️</AppText>
+            </View>
+
+            <View style={[styles.metricCard, styles.metricCardPink]}>
+              <AppText style={styles.metricValue}>
+                {monthTotals.avgSugarG.toLocaleString()} g
+              </AppText>
+              <AppText style={styles.metricLabel}>일평균{'\n'}당류🍭</AppText>
+            </View>
+          </View>
+        </View>
+
+        {/* 하단 상세 */}
+        <View style={styles.footerCard}>
+          <View style={styles.footerRow}>
+            <AppText style={styles.footerDate}>
+              {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월{" "}
+              {selectedDate.getDate()}일
+            </AppText>
+            <AppText style={styles.footerSub}>
+              기록 수: {selectedEntries.length}개
+            </AppText>
+          </View>
+
+          <View style={styles.footerMetricsRow}>
+            <View style={styles.footerMetricPill}>
+              <AppText style={styles.footerMetricValue}>
+                {selectedTotals.waterMl.toLocaleString()} mL
+              </AppText>
+              <AppText style={styles.footerMetricLabel}>수분</AppText>
+            </View>
+
+            <View style={styles.footerMetricPill}>
+              <AppText style={styles.footerMetricValue}>
+                {selectedTotals.caffeineMg.toLocaleString()} mg
+              </AppText>
+              <AppText style={styles.footerMetricLabel}>카페인</AppText>
+            </View>
+            
+            <View style={styles.footerMetricPill}>  
+              <AppText style={styles.footerMetricValue}>
+                {selectedTotals.sugarG.toLocaleString()} g
+              </AppText>
+              <AppText style={styles.footerMetricLabel}>당</AppText>
+            </View>
+
+          </View>
+
+          <View style={styles.entrySection}>
+            <AppText style={{ ...TYPOGRAPHY.preset.h3, color: COLORS.semantic.textPrimary }}>
+              마신 음료
+            </AppText>
+
+          <View style={styles.entryList}>
+            {selectedEntriesWithIcons.length > 0 ? (
+              selectedEntriesWithIcons.map((entry) => {
+                const amountText =
+                  entry.unit === "cup"
+                    ? `${Math.round(entry.servings ?? 0)}잔`
+                    : `${Math.round(entry.totalMl ?? 0)}mL`;
+
+                return (
+                  <View key={entry.id} style={styles.entryRow}>
+                    <DrinkIcon iconKey={entry.resolvedDrinkIconKey} size={28} />
+                    <View style={styles.entryInfo}>
+                      <AppText style={styles.entryName}>
+                        {entry.drinkName}
+                      </AppText>
+                      <AppText style={styles.entryMeta}>{amountText}</AppText>
+                    </View>
+                  </View>
+                );
+              })
+            ) : (
+              <AppText style={styles.footerHint}>
+                이 날짜에는 기록이 없어요.
+              </AppText>
+            )}
+          </View>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 export default Calendar;
+
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 64,
+    paddingBottom: 16,
+  },
+  header: {
+    height: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  headerTitle: {
+    ...TYPOGRAPHY.preset.h1,
+    color: COLORS.semantic.textPrimary,
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weekRow: {
+    flexDirection: "row",
+    marginBottom: 6,
+  },
+  weekCell: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 6,
+  },
+  weekText: {
+    ...TYPOGRAPHY.preset.h3,
+    color: COLORS.semantic.textPrimary,
+  },
+  sundayText: {
+    color: COLORS.status.high,
+  },
+  saturdayText: {
+    color: COLORS.semantic.textSecondary,
+    opacity: 0.8,
+  },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.2857%",
+    aspectRatio: 1,
+    padding: 3,
+  },
+  dayInner: {
+    flex: 1,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  todayCell: {
+    backgroundColor: COLORS.base.warmBeige,
+  },
+  selectedCell: {
+    borderColor: '#8C6D5A',
+    borderWidth: 1.5,
+    backgroundColor: '#d8bc9c'
+  },
+  dayText: {
+    ...TYPOGRAPHY.preset.h3,
+    lineHeight: 20,
+    color: COLORS.semantic.textPrimary,
+  },
+  dayTextHidden: {
+    ...TYPOGRAPHY.preset.h3,
+    lineHeight: 20,
+    color: "transparent",
+  },
+  outsideMonthText: {
+    color: COLORS.semantic.textSecondary,
+    opacity: 0.45,
+  },
+  todayText: {
+    color: COLORS.semantic.textPrimary,
+  },
+  selectedText: {
+    color: '#5E4638',
+  },
+  iconSlot: {
+    position: "absolute",
+    bottom: 6,
+    width: 24,
+    height: 24,
+    left: "50%",
+    top: 10,
+    marginLeft: -12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadge: {
+    position: "absolute",
+    right: -4,
+    top: -2,
+    minWidth: 14,
+    height: 14,
+    paddingHorizontal: 3,
+    borderRadius: 999,
+    backgroundColor: COLORS.semantic.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countBadgeText: {
+    ...TYPOGRAPHY.preset.caption,
+    fontSize: 9,
+    lineHeight: 10,
+    color: COLORS.base.creamPaper,
+  },
+  monthSummaryCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.creamPaper,
+    padding: 16,
+    marginBottom: 12,
+  },
+  monthSummaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  monthSummaryEyebrow: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+  },
+  monthBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+  },
+  monthBadgeText: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textPrimary,
+  },
+  monthSummaryCaption: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginBottom: 12,
+  },
+  monthSummaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  metricCard: {
+    flex: 1,
+    minHeight: 76,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  metricCardBlue: {
+    backgroundColor: '#EEF6FF',
+  },
+  metricCardBrown: {
+    backgroundColor: COLORS.base.warmBeige,
+  },
+  metricCardPink: {
+    backgroundColor: '#FFF1F3',
+  },
+  metricValue: {
+    ...TYPOGRAPHY.preset.h2,
+    color: COLORS.semantic.textPrimary,
+  },
+  metricLabel: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  monthSummaryTitle: {
+    ...TYPOGRAPHY.preset.h2,
+    color: COLORS.semantic.textPrimary,
+    marginBottom: 10,
+  },
+  monthSummaryItem: {
+    width: "50%",
+    gap: 2,
+  },
+  monthSummaryValue: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+  },
+  monthSummaryLabel: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+  },
+  footerCard: {
+    marginTop: 16,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.creamPaper,
+    padding: 14,
+  },
+  footerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  footerDate: {
+    ...TYPOGRAPHY.preset.h2,
+    color: COLORS.semantic.textPrimary,
+    marginBottom: 4,
+  },
+  footerSub: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginBottom: 8,
+    borderRadius: 999,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  footerHint: {
+    ...TYPOGRAPHY.preset.body,
+    opacity: 0.7,
+  },
+  summaryRow: {
+    gap: 4,
+    marginBottom: 10,
+  },
+  summaryText: {
+    ...TYPOGRAPHY.preset.h3,
+    color: COLORS.semantic.textSecondary,
+  },
+  entrySection: {
+    marginTop: 2,
+  },
+  entryList: {
+    gap: 8,
+  },
+  entryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  entryInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  entryName: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+  },
+  entryMeta: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginTop: 2,
+  },
+  oneLineBox: {
+    marginBottom: 12,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: COLORS.base.warmBeige,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+  },
+  oneLineText: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+    textAlign: "center",
+  },
+  footerMetricsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  footerMetricPill: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    alignItems: "center",
+  },
+  footerMetricValue: {
+    ...TYPOGRAPHY.preset.h3,
+    color: COLORS.semantic.textPrimary,
+  },
+  footerMetricLabel: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textSecondary,
+    marginTop: 2,
+  },
+});
