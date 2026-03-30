@@ -15,7 +15,7 @@ import TextField from "@/src/components/ui/TextField";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
 import { DRINK_ICONS, DrinkIconKey } from "@/src/constants/icons";
 
-type SearchableItem = {
+export type SearchableDrinkItem = {
   id: string;
   name: string;
   category?: string;
@@ -25,16 +25,15 @@ type SearchableItem = {
   drinkIconKey?: string;
   createdAtMs?: number;
   popularityScore?: number;
+  brand?: string | null;
 };
-
-type Item = Pick<SearchableItem, "id" | "name">;
 
 type Props = {
   visible: boolean;
   query: string;
-  items: SearchableItem[];
+  items: SearchableDrinkItem[];
   onChangeQuery: (text: string) => void;
-  onPick: (item: Item) => void;
+  onPick: (item: SearchableDrinkItem) => void;
   onClose: () => void;
 };
 
@@ -96,7 +95,7 @@ const DrinkSearchModal = ({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
 
-    const compareBySort = (a: SearchableItem, b: SearchableItem) => {
+    const compareBySort = (a: SearchableDrinkItem, b: SearchableDrinkItem) => {
       if (sortMode === "latest") {
         const diff = Number(b.createdAtMs ?? 0) - Number(a.createdAtMs ?? 0);
         if (diff !== 0) return diff;
@@ -129,7 +128,7 @@ const DrinkSearchModal = ({
       .sort(compareBySort);
   }, [items, query, selectedCategory, sortMode]);
 
-  const renderItem = ({ item, index }: ListRenderItemInfo<SearchableItem>) => (
+  const renderItem = ({ item, index }: ListRenderItemInfo<SearchableDrinkItem>) => (
     <View>
       <Pressable style={styles.row} onPress={() => onPick(item)}>
         <DrinkIcon

@@ -41,6 +41,7 @@ import { addDays, toDateKey, toKoreanDateLabel } from "@/src/lib/dateKey";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth } from "@/src/providers/AuthProvider";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
+import AppText from "@/src/components/ui/AppText";
 
 type SummaryCard = {
   label: "수분💧" | "카페인☕️" | "당류🍭";
@@ -73,6 +74,9 @@ const balancedMessages = [
   "부담 없이 깔끔한 하루였어요.",
 ];
 
+const NUTRITION_TOOLTIP_TEXT =
+  "수분은 순수 물 및 일부 차 종류로만 계산되며, 카페인과 당은 기록한 음료의 일반적인 레시피 기준으로 합산돼요. 목표 수치는 마이페이지에서 바꿀 수 있어요.\n\n* 수분과 달리 카페인과 당류는 부족해도 괜찮아요.\n* 수분 섭취로 인정되는 차 : 보리차, 루이보스 차, 히비스커스 차, 비트차, 현미차, 옥수수차";
+
 type VariantLevelLabel = "조금 적음" | "적절" | "조금 많음";
 
 function scoreForIcon(entry: { isWaterOnly?: boolean; totalMl?: number }) {
@@ -81,9 +85,7 @@ function scoreForIcon(entry: { isWaterOnly?: boolean; totalMl?: number }) {
   return base * weight;
 }
 
-function normalizeIngredientIconKey(
-  raw: unknown,
-): IngredientIconKey {
+function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
   if (typeof raw !== "string") return "default";
   const key = raw.trim().toLowerCase();
 
@@ -96,9 +98,7 @@ function normalizeIngredientIconKey(
   };
 
   const mapped = aliasMap[key] ?? key;
-  return mapped in INGREDIENT_ICONS
-    ? (mapped as IngredientIconKey)
-    : "default";
+  return mapped in INGREDIENT_ICONS ? (mapped as IngredientIconKey) : "default";
 }
 
 function inferIngredientIconFromEntry(entry: {
@@ -208,6 +208,8 @@ const HomeScreen = () => {
 
   const [goals, setGoals] = useState(DEFAULT_GOALS);
 
+  const [nutritionToolTipOpen, setNutritionToolTipOpen] = useState(false);
+
   const cards: SummaryCard[] = useMemo(
     () => [
       {
@@ -245,7 +247,8 @@ const HomeScreen = () => {
   const [todayOneLine, setTodayOneLine] = useState("");
   const [goalsAchieved, setGoalsAchieved] = useState(false);
   const [topIconKey, setTopIconKey] = useState<IngredientIconKey | null>(null);
-  const [overrideIconKey, setOverrideIconKey] = useState<IngredientIconKey | null>(null);
+  const [overrideIconKey, setOverrideIconKey] =
+    useState<IngredientIconKey | null>(null);
   const todayIconKey = useMemo<IngredientIconKey>(
     () => overrideIconKey ?? topIconKey ?? "default",
     [overrideIconKey, topIconKey],
@@ -340,7 +343,9 @@ const HomeScreen = () => {
           setGoalsAchieved(Boolean(data.goalsAchieved));
           const overrideRaw = data.overrideIconKey;
           setOverrideIconKey(
-            overrideRaw == null ? null : normalizeIngredientIconKey(overrideRaw),
+            overrideRaw == null
+              ? null
+              : normalizeIngredientIconKey(overrideRaw),
           );
         } else {
           setOverrideIconKey(null);
@@ -587,10 +592,11 @@ const HomeScreen = () => {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets
+        onTouchStart={() => {
+          if(nutritionToolTipOpen) setNutritionToolTipOpen(false);
+        }}
       >
-        {showConfetti ? (
-          <Text style={styles.confettiFallback}>🎉</Text>
-        ) : null}
+        {showConfetti ? <Text style={styles.confettiFallback}>🎉</Text> : null}
         {/* 날짜 */}
         <Pressable
           style={styles.calendar}
@@ -612,9 +618,11 @@ const HomeScreen = () => {
                 color={COLORS.semantic.textPrimary}
               />
             </Pressable>
-            <Text style={styles.dateText}>
-              {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
-            </Text>
+            <View style={styles.dateCenter}>
+              <Text style={styles.dateText}>
+                {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
+              </Text>
+            </View>
             <Pressable
               style={styles.iconBtn}
               onPress={() => setSelectedDate((d) => addDays(d, +1))}
@@ -646,18 +654,49 @@ const HomeScreen = () => {
           <Text style={styles.summaryHeaderTitle}>
             오늘의 수분/카페인/당 섭취량
           </Text>
-          <Pressable
-            hitSlop={8}
-            onPress={() => {
-              // TODO : 툴팁으로 설명 띄우기
-            }}
-          >
-            <Ionicons
-              name="help-circle-outline"
-              size={18}
-              color={COLORS.semantic.textSecondary}
-            />
-          </Pressable>
+
+          <View style={styles.tooltipAnchor}>
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                setNutritionToolTipOpen(true);
+              }}
+            >
+              <Ionicons
+                name="help-circle-outline"
+                size={18}
+                color={COLORS.semantic.textSecondary}
+              />
+            </Pressable>
+
+            {nutritionToolTipOpen ? (
+              <View style={styles.tooltipBubble}>
+                <View style={styles.tooltipArrow} />
+
+                <View style={styles.tooltipBubbleHeader}>
+                  <AppText style={styles.tooltipBubbleTitle}>
+                    수분/카페인/당 계산 기준
+                  </AppText>
+
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => setNutritionToolTipOpen(false)}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={16}
+                      color={COLORS.semantic.textPrimary}
+                    />
+                  </Pressable>
+                </View>
+
+                <AppText style={styles.tooltipBubbleText}>
+                  {NUTRITION_TOOLTIP_TEXT}
+                </AppText>
+              </View>
+  
+            ) : null}
+          </View>
         </View>
         {/* 수분/카페인/당 카드 */}
         <View style={styles.cardRow}>
@@ -793,7 +832,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingTop: 20,
     backgroundColor: "transparent",
-    paddingHorizontal: 20,
+
   },
   confettiFallback: {
     position: "absolute",
@@ -807,12 +846,16 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   dateBar: {
+    width: "100%",
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 10,
+  },
+  dateCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
   iconBtn: {
     width: 36,
@@ -948,4 +991,49 @@ const styles = StyleSheet.create({
     height: 200,
     alignSelf: "stretch",
   },
+  tooltipAnchor: {
+    position: 'relative',
+  },
+  tooltipBubble: {
+    position: 'absolute',
+    top: 26,
+    right: 0,
+    width: 260,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    zIndex: 30,
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    top: -7,
+    right: 16,
+    width: 12,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: COLORS.ui.border,
+    transform: [{ rotate: '45deg' }],
+  },
+  tooltipBubbleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  tooltipBubbleTitle: {
+    ...TYPOGRAPHY.preset.h3,
+  },
+  tooltipBubbleText: {
+    ...TYPOGRAPHY.preset.body,
+    lineHeight: 20
+  }
 });

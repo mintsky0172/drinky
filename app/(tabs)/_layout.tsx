@@ -33,10 +33,7 @@ export default function TabsLayout() {
         tabBarActiveTintColor: TAB_BAR.activeTintColor,
         tabBarInactiveTintColor: TAB_BAR.inactiveTintColor,
         tabBarLabelStyle: TAB_BAR.labelStyle as any,
-        tabBarItemStyle: {
-          paddingTop: TAB_BAR.paddingTop,
-          paddingBottom: TAB_BAR.paddingBottom,
-        },
+        tabBarItemStyle: TAB_BAR.itemStyle as any,
       }}
     >
       <Tabs.Screen

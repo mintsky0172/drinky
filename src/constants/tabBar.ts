@@ -2,14 +2,21 @@ import { COLORS } from "./colors";
 import { TYPOGRAPHY } from "./typography";
 
 export const TAB_BAR = {
-    height: 62,
-    paddingTop: 8,
-    paddingBottom: 10,
+    height: 64,
+    paddingTop: 4,
+    paddingBottom: 6,
 
     style: {
+        height: 64,
         backgroundColor: COLORS.base.warmBeige,
         borderTopColor: COLORS.ui.border,
         borderTopWidth: 1,
+        paddingTop: 4,
+        paddingBottom: 6,
+    },
+    itemStyle: {
+        paddingTop: 0,
+        paddingBottom: 6,
     },
     labelStyle: {
         ...TYPOGRAPHY.preset.caption,
