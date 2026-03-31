@@ -65,6 +65,7 @@ const styles = StyleSheet.create({
   containerWithIcon: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 48,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.ui.border,
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   iconSlot: {
-    height: "100%",
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -98,7 +99,7 @@ const styles = StyleSheet.create({
   },
   inputWithIcon: {
     flex: 1,
-    height: "100%",
+    height: 48,
     borderWidth: 0,
     borderRadius: 0,
     backgroundColor: "transparent",

@@ -45,26 +45,19 @@ export async function markInquirySeen(uid: string, inquiryId: string) {
   });
 }
 
-export async function hideRecipe(recipeId: string, adminUid: string) {
-  const ref = doc(db, "recipes", recipeId);
+export async function setRecipePublic(
+    recipeId: string,
+    isPublic: boolean,
+    adminUid: string,
+) {
+    const ref = doc(db, 'recipes', recipeId);
 
-  await updateDoc(ref, {
-    isPublic: false,
-    updatedAt: serverTimestamp(),
-    updatedBy: adminUid,
-    source: "admin",
-  });
-}
-
-export async function unhideRecipe(recipeId: string, adminUid: string) {
-  const ref = doc(db, "recipes", recipeId);
-
-  await updateDoc(ref, {
-    isPublic: true,
-    updatedAt: serverTimestamp(),
-    updatedBy: adminUid,
-    source: "admin",
-  });
+    await updateDoc(ref, {
+        isPublic,
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUid,
+        source: 'admin',
+    })
 }
 
 export async function getReportById(id: string) {
