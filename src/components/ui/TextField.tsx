@@ -30,6 +30,7 @@ const TextField = ({
   ...inputProps
 }: Props) => {
   const hasIcon = Boolean(leftIcon || rightIcon);
+  const isMultiline = Boolean(inputProps.multiline);
 
   return (
     <View style={[styles.container, hasIcon && styles.containerWithIcon, containerStyle]}>
@@ -40,7 +41,13 @@ const TextField = ({
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={COLORS.ui.disabledText}
-        style={[styles.input, style, hasIcon && styles.inputWithIcon]}
+        style={[
+          styles.input,
+          isMultiline && styles.multilineInput,
+          style,
+          hasIcon && styles.inputWithIcon,
+          hasIcon && isMultiline && styles.inputWithIconMultiline,
+        ]}
         {...inputProps}
       />
 
@@ -83,6 +90,12 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlignVertical: "center",
   },
+  multilineInput: {
+    height: "auto",
+    minHeight: 48,
+    paddingVertical: 12,
+    textAlignVertical: "top",
+  },
   inputWithIcon: {
     flex: 1,
     height: "100%",
@@ -93,5 +106,11 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     lineHeight: 15,
     textAlignVertical: "center",
+  },
+  inputWithIconMultiline: {
+    height: "auto",
+    minHeight: 48,
+    paddingVertical: 12,
+    textAlignVertical: "top",
   },
 });

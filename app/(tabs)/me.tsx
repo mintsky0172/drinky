@@ -1,5 +1,6 @@
 import AppText from "@/src/components/ui/AppText";
 import { COLORS } from "@/src/constants/colors";
+import { getUserRole } from "@/src/lib/admin/adminApi";
 import { auth, db } from "@/src/lib/firebase";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,10 +49,30 @@ async function deleteAllEntries(uid: string) {
 function Me() {
   const { user, initializing } = useAuth();
 
+  const [loadingRole, setLoadingRole] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
   const [nickname, setNickname] = useState("닉네임");
   const [email, setEmail] = useState("");
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [streakDays, setStreakDays] = useState(0);
+
+  useEffect(() => {
+    if (initializing) return;
+    if (!user) {
+      setLoadingRole(false);
+      setIsAdmin(false);
+      return;
+    }
+
+    const run = async () => {
+      const role = await getUserRole(user.uid);
+      setIsAdmin(role === "admin");
+      setLoadingRole(false);
+    };
+
+    run();
+  }, [user, initializing]);
 
   useEffect(() => {
     if (initializing) return;
@@ -159,7 +180,17 @@ function Me() {
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        <AppText preset="h1">마이페이지</AppText>
+        <View style={styles.titleRow}>
+         <AppText preset="h1">마이페이지</AppText>
+
+         {isAdmin ? (
+          <Pressable style={styles.admin} onPress={() => router.push('/admin')}>
+            <Image source={require('@/assets/icons/etc/tool.png')} style={styles.adminIcon} />
+            <AppText preset='body'>관리자 페이지</AppText>
+          </Pressable>
+         ) : null}
+        </View>
+     
 
         {/* 프로필 카드 */}
         <View style={styles.sectionCard}>
@@ -244,7 +275,11 @@ function Me() {
                 source={require("@/assets/icons/etc/idea.png")}
                 style={styles.menuIcon}
               />
-              <AppText preset="h3" style={styles.menuText} onPress={() => router.push("/report/new")}>
+              <AppText
+                preset="h3"
+                style={styles.menuText}
+                onPress={() => router.push("/report/new")}
+              >
                 새로운 음료 / 단종 음료 제보하기
               </AppText>
             </View>
@@ -258,7 +293,11 @@ function Me() {
                 source={require("@/assets/icons/etc/mail.png")}
                 style={styles.menuIcon}
               />
-              <AppText preset="h3" style={styles.menuText} onPress={() => router.push('/inquiry/new')}>
+              <AppText
+                preset="h3"
+                style={styles.menuText}
+                onPress={() => router.push("/inquiry/new")}
+              >
                 문의하기
               </AppText>
             </View>
@@ -339,8 +378,8 @@ function GoalValue({
 
 function toLocalDateKey(date: Date) {
   const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
 }
 
@@ -361,15 +400,15 @@ function calculateCurrentStreak(dateKeys: string[]) {
   const yesterdayKey = toLocalDateKey(yesterday);
 
   // 오늘도, 어제도 기록이 없으면 streak 끊김
-  if(!keySet.has(todayKey) && !keySet.has(yesterdayKey)) return 0;
+  if (!keySet.has(todayKey) && !keySet.has(yesterdayKey)) return 0;
 
   // 오늘 기록 있으면 오늘부터, 없으면 어제부터 시작
   let cursor = keySet.has(todayKey) ? today : yesterday;
   let streak = 0;
-  
-  while(true) {
+
+  while (true) {
     const key = toLocalDateKey(cursor);
-    if(!keySet.has(key)) break;
+    if (!keySet.has(key)) break;
 
     streak++;
     cursor = addDays(cursor, -1);
@@ -390,6 +429,18 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     gap: 14,
     backgroundColor: "transparent",
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  },
+  admin: {
+    flexDirection: 'row'
+  },
+  adminIcon: {
+    width: 24,
+    height: 24
   },
   sectionCard: {
     borderRadius: 22,
@@ -493,7 +544,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   goalsValue: {
-    textAlign: 'center',
+    textAlign: "center",
   },
   menuRow: {
     minHeight: 24,

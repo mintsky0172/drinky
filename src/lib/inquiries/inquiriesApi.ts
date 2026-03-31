@@ -7,7 +7,7 @@ type SubmitInquiryInput = {
     subject: string;
     message: string;
     createdBy: string;
-    createdByNickName: string;
+    createdByNickname: string;
     email: string;
 };
 
@@ -16,7 +16,7 @@ export async function submitInquiry(input: SubmitInquiryInput) {
         subject: input.subject,
         message: input.message,
         createdBy: input.createdBy,
-        createdByNickName: input.createdByNickName ?? '',
+        createdByNickname: input.createdByNickname ?? '',
         createdAt: serverTimestamp(),
         status: "open",
         adminMemo: '',

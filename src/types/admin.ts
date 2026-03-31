@@ -13,7 +13,7 @@ export type ReportDoc = {
     title: string;
     message: string;
     createdBy: string;
-    createdByNickName?: string;
+    createdByNickname?: string;
     createdAt: any;
     status: ReportStatus;
     adminMemo?: string;
@@ -23,7 +23,7 @@ export type InquiryDoc ={
     subject: string;
     message: string;
     createdBy: string;
-    createdByNickName?: string;
+    createdByNickname?: string;
     createdAt: any;
     status: InquiryStatus;
     adminMemo?: string; 

@@ -9,7 +9,7 @@ type SubmitReportInput = {
     title: string;
     message: string;
     createdBy: string;
-    createdByNickName?: string;
+    createdByNickname?: string;
 }
 
 export async function submitReport(input: SubmitReportInput) {
@@ -20,7 +20,7 @@ export async function submitReport(input: SubmitReportInput) {
         title: input.title,
         message: input.message,
         createdBy: input.createdBy,
-        createdByNickName: input.createdByNickName ?? '',
+        createdByNickname: input.createdByNickname ?? '',
         createdAt: serverTimestamp(),
         status: "open",
         adminMemo: '',

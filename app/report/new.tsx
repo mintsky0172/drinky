@@ -150,7 +150,7 @@ export default function NewReportScreen() {
                 title,
                 message: message.trim(),
                 createdBy: user.uid,
-                createdByNickName: user.displayName ?? '',
+                createdByNickname: user.displayName ?? '',
              });
 
              Toast.show({

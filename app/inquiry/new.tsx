@@ -48,7 +48,7 @@ export default function NewInquiryScreen() {
         subject: subject.trim(),
         message: message.trim(),
         createdBy: user.uid,
-        createdByNickName: user.displayName ?? "",
+        createdByNickname: user.displayName ?? "",
         email: email.trim()
       });
 
