@@ -8,6 +8,23 @@ import {
 import { db } from "../firebase";
 import { InquiryDoc, ReportDoc } from "@/src/types/admin";
 
+type UpdateRecipeInput = {
+  name: string;
+  brand?: string;
+  category?: string;
+  drinkIconKey?: string;
+  calendarIconKey?: string;
+  mlPerServing: number;
+  caffeineMgPerServing: number;
+  sugarGPerServing: number;
+  isWaterOnly: boolean;
+  isPublic: boolean;
+  normalizedName?: string;
+  aliases?: string[];
+  searchKeywords?: string[];
+  tags?: string[];
+};
+
 export async function getUserRole(uid: string) {
   const ref = doc(db, "users", uid);
   const snap = await getDoc(ref);
@@ -20,13 +37,13 @@ export async function getUserRole(uid: string) {
 }
 
 export async function getAdminMeta(uid: string) {
-    const ref = doc(db, 'users', uid);
-    const snap = await getDoc(ref);
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
 
-    if(!snap.exists()) return null;
+  if (!snap.exists()) return null;
 
-    const data = snap.data();
-    return data.adminMeta ?? null;
+  const data = snap.data();
+  return data.adminMeta ?? null;
 }
 
 export async function markReportSeen(uid: string, reportId: string) {
@@ -46,18 +63,18 @@ export async function markInquirySeen(uid: string, inquiryId: string) {
 }
 
 export async function setRecipePublic(
-    recipeId: string,
-    isPublic: boolean,
-    adminUid: string,
+  recipeId: string,
+  isPublic: boolean,
+  adminUid: string,
 ) {
-    const ref = doc(db, 'recipes', recipeId);
+  const ref = doc(db, "recipes", recipeId);
 
-    await updateDoc(ref, {
-        isPublic,
-        updatedAt: serverTimestamp(),
-        updatedBy: adminUid,
-        source: 'admin',
-    })
+  await updateDoc(ref, {
+    isPublic,
+    updatedAt: serverTimestamp(),
+    updatedBy: adminUid,
+    source: "admin",
+  });
 }
 
 export async function getReportById(id: string) {
@@ -113,5 +130,32 @@ export async function updateInquiryStatus(
     status: input.status,
     adminMemo: input.adminMemo ?? "",
     updatedAt: serverTimestamp(),
+  });
+}
+
+export async function getRecipeById(recipeId: string) {
+  const ref = doc(db, "recipes", recipeId);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return null;
+
+  return {
+    id: snap.id,
+    ...snap.data(),
+  };
+}
+
+export async function updateRecipe(
+  recipeId: string,
+  input: UpdateRecipeInput,
+  adminUid: string,
+) {
+  const ref = doc(db, "recipes", recipeId);
+
+  await updateDoc(ref, {
+    ...input,
+    updatedAt: serverTimestamp(),
+    updatedBy: adminUid,
+    source: "admin",
   });
 }

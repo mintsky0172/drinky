@@ -30,7 +30,7 @@ type RecipeItem = {
   drinkIconKey?: DrinkIconKey;
 };
 
-type VisibilityFilter = 'all' | 'public' | 'hidden';
+type VisibilityFilter = "all" | "public" | "hidden";
 
 const CATEGORY_OPTIONS = [
   "전체",
@@ -48,7 +48,10 @@ const CATEGORY_OPTIONS = [
   "프라페",
 ] as const;
 
-const CATEGORY_VALUE_MAP: Record<(typeof CATEGORY_OPTIONS)[number], string | null> = {
+const CATEGORY_VALUE_MAP: Record<
+  (typeof CATEGORY_OPTIONS)[number],
+  string | null
+> = {
   전체: null,
   기타: "other",
   라떼: "latte",
@@ -98,11 +101,11 @@ function getBrandLabel(brand?: string) {
   return BRAND_LABEL_MAP[brand] ?? brand;
 }
 
-const VISIBILITY_OPTIONS: {key: VisibilityFilter; label: string}[] = [
-    {key: 'all', label: '전체'},
-    {key: 'public', label: '공개만'},
-    {key: 'hidden', label: '숨김만'}
-]
+const VISIBILITY_OPTIONS: { key: VisibilityFilter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "public", label: "공개만" },
+  { key: "hidden", label: "숨김만" },
+];
 
 const AdminRecipesScreen = () => {
   const router = useRouter();
@@ -116,7 +119,7 @@ const AdminRecipesScreen = () => {
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof CATEGORY_OPTIONS)[number]>("전체");
   const [visibilityFilter, setVisibilityFilter] =
-    useState<VisibilityFilter>('all');
+    useState<VisibilityFilter>("all");
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -174,9 +177,9 @@ const AdminRecipesScreen = () => {
 
         const isPublic = item.isPublic !== false;
         const matchesVisibility =
-            visibilityFilter === 'all' ||
-            (visibilityFilter === 'public' && isPublic) ||
-            (visibilityFilter === 'hidden' && !isPublic)
+          visibilityFilter === "all" ||
+          (visibilityFilter === "public" && isPublic) ||
+          (visibilityFilter === "hidden" && !isPublic);
 
         if (!matchesCategory || !matchesVisibility) return false;
         if (!q) return true;
@@ -307,37 +310,37 @@ const AdminRecipesScreen = () => {
               </View>
             </View>
 
-            <View style={[styles.sectionCard, {marginBottom: 14}]}>
-                <AppText preset='h2' style={styles.sectionTitle}>
-                    공개 상태
-                </AppText>
+            <View style={[styles.sectionCard, { marginBottom: 14 }]}>
+              <AppText preset="h2" style={styles.sectionTitle}>
+                공개 상태
+              </AppText>
 
-                <View style={styles.categoryWrap}>
-                    {VISIBILITY_OPTIONS.map((option) => {
-                        const selected = visibilityFilter === option.key;
+              <View style={styles.categoryWrap}>
+                {VISIBILITY_OPTIONS.map((option) => {
+                  const selected = visibilityFilter === option.key;
 
-                        return (
-                            <Pressable
-                                key={option.key}
-                                style={[
-                                    styles.categoryChip,
-                                    selected && styles.categoryChipActive,
-                                ]}
-                                onPress={() => setVisibilityFilter(option.key)}
-                            >
-                                <AppText
-                                    preset='body'
-                                    style={[
-                                        styles.categoryChipText,
-                                        selected && styles.categoryChipTextActive,
-                                    ]}
-                                >
-                                    {option.label}
-                                </AppText>
-                            </Pressable>
-                        )
-                    })}
-                </View>
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.categoryChip,
+                        selected && styles.categoryChipActive,
+                      ]}
+                      onPress={() => setVisibilityFilter(option.key)}
+                    >
+                      <AppText
+                        preset="body"
+                        style={[
+                          styles.categoryChipText,
+                          selected && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.menuCard}>
@@ -361,7 +364,10 @@ const AdminRecipesScreen = () => {
               index === filteredRecipes.length - 1 && styles.menuCardRowLast,
             ]}
           >
-            <View style={styles.recipeRow}>
+            <Pressable
+              style={styles.recipeRow}
+              onPress={() => router.push(`/admin/recipes/${item.id}`)}
+            >
               <View style={styles.recipeMain}>
                 <DrinkIcon iconKey={item.drinkIconKey} size={28} />
                 <AppText preset="h3" numberOfLines={1}>
@@ -369,7 +375,8 @@ const AdminRecipesScreen = () => {
                 </AppText>
 
                 <AppText preset="caption" style={styles.recipeMeta}>
-                  {getBrandLabel(item.brand)} / {getCategoryLabel(item.category)}
+                  {getBrandLabel(item.brand)} /{" "}
+                  {getCategoryLabel(item.category)}
                 </AppText>
 
                 <View
@@ -391,7 +398,7 @@ const AdminRecipesScreen = () => {
                 onValueChange={() => handleTogglePublic(item)}
                 disabled={togglingId === item.id}
               />
-            </View>
+            </Pressable>
 
             {index < filteredRecipes.length - 1 ? (
               <View style={styles.divider} />
