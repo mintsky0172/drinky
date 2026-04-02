@@ -1,5 +1,7 @@
 import {
+    addDoc,
   arrayUnion,
+  collection,
   doc,
   getDoc,
   serverTimestamp,
@@ -7,6 +9,28 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { InquiryDoc, ReportDoc } from "@/src/types/admin";
+
+export type Recipe = {
+  id: string;
+  name?: string;
+  brand?: string;
+  category?: string;
+  drinkIconKey?: string;
+  calendarIconKey?: string;
+  mlPerServing?: number;
+  caffeineMgPerServing?: number;
+  sugarGPerServing?: number;
+  isWaterOnly?: boolean;
+  isPublic?: boolean;
+  normalizedName?: string;
+  aliases?: string[];
+  searchKeywords?: string[];
+  tags?: string[];
+  createdAt?: unknown;
+  updatedAt?: unknown;
+  updatedBy?: string;
+  source?: string;
+};
 
 type UpdateRecipeInput = {
   name: string;
@@ -24,6 +48,23 @@ type UpdateRecipeInput = {
   searchKeywords?: string[];
   tags?: string[];
 };
+
+type CreateRecipeInput = {
+    name: string;
+    brand?: string;
+    category?: string;
+    drinkIconKey?: string;
+    calendarIconKey?: string;
+    mlPerServing: number;
+    caffeineMgPerServing: number;
+    sugarGPerServing: number;
+    isWaterOnly: boolean;
+    isPublic: boolean;
+    normalizedName?: string;
+    aliases?: string[];
+    searchKeywords?: string[];
+    tags?: string[];
+}
 
 export async function getUserRole(uid: string) {
   const ref = doc(db, "users", uid);
@@ -158,4 +199,20 @@ export async function updateRecipe(
     updatedBy: adminUid,
     source: "admin",
   });
+}
+
+export async function createRecipe(
+    input: CreateRecipeInput,
+    adminUid: string,
+) {
+    const payload = {
+        ...input,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUid,
+        source: 'admin',
+    };
+
+    const ref = await addDoc(collection(db, 'recipes'), payload);
+    return ref.id;
 }

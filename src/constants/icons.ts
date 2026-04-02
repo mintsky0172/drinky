@@ -63,3 +63,9 @@ export const INGREDIENT_ICONS = {
 };
 
 export type IngredientIconKey = keyof typeof INGREDIENT_ICONS;
+
+export const DRINK_ICON_KEYS = Object.keys(DRINK_ICONS) as DrinkIconKey[];
+export const INGREDIENT_ICON_KEYS = Object.keys(
+  INGREDIENT_ICONS,
+) as IngredientIconKey[];
+

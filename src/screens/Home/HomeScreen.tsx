@@ -728,6 +728,7 @@ const HomeScreen = () => {
         />
         <IconPickerModal
           visible={iconPickerOpen}
+          type="ingredient"
           selectedKey={todayIconKey}
           onSelect={handleSelectIcon}
           onClose={() => setIconPickerOpen(false)}

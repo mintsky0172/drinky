@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     height: 40,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
   },
   sectionCard: {
     borderRadius: 22,

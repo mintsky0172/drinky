@@ -7,14 +7,18 @@ import {
   View,
 } from "react-native";
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { collection, onSnapshot } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AppText from "@/src/components/ui/AppText";
 import TextField from "@/src/components/ui/TextField";
 import { useAuth } from "@/src/providers/AuthProvider";
-import { getUserRole, setRecipePublic } from "@/src/lib/admin/adminApi";
+import {
+  getUserRole,
+  setRecipePublic,
+  updateReportStatus,
+} from "@/src/lib/admin/adminApi";
 import { COLORS } from "@/src/constants/colors";
 import { db } from "@/src/lib/firebase";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
@@ -31,6 +35,8 @@ type RecipeItem = {
 };
 
 type VisibilityFilter = "all" | "public" | "hidden";
+
+type SortOption = "name" | "brand" | "category" | "updatedAt";
 
 const CATEGORY_OPTIONS = [
   "전체",
@@ -91,6 +97,13 @@ const BRAND_LABEL_MAP: Record<string, string> = {
   oozy: "우지커피",
 };
 
+const SORT_OPTIONS: { key: SortOption; label: string }[] = [
+  { key: "name", label: "이름순" },
+  { key: "brand", label: "브랜드순" },
+  { key: "category", label: "카테고리순" },
+  { key: "updatedAt", label: "최근 수정순" },
+];
+
 function getCategoryLabel(category?: string) {
   if (!category) return "미분류";
   return CATEGORY_LABEL_MAP[category] ?? category;
@@ -110,18 +123,31 @@ const VISIBILITY_OPTIONS: { key: VisibilityFilter; label: string }[] = [
 const AdminRecipesScreen = () => {
   const router = useRouter();
   const { user, initializing } = useAuth();
+  const params = useLocalSearchParams<{
+    reportId?: string;
+    prefillBrand?: string;
+    prefillName?: string;
+  }>();
+  const reportIdParam = Array.isArray(params.reportId)
+    ? params.reportId[0]
+    : params.reportId;
 
   const [loadingRole, setLoadingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [recipes, setRecipes] = useState<RecipeItem[]>([]);
-  const [search, setSearch] = useState("");
+
+  const initialSearch = [params.prefillName].filter(Boolean).join(" ").trim();
+  const [search, setSearch] = useState(initialSearch);
+
   const [selectedCategory, setSelectedCategory] =
     useState<(typeof CATEGORY_OPTIONS)[number]>("전체");
   const [visibilityFilter, setVisibilityFilter] =
     useState<VisibilityFilter>("all");
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const [sortBy, setSortBy] = useState<SortOption>("name");
 
   useEffect(() => {
     if (initializing) return;
@@ -169,7 +195,7 @@ const AdminRecipesScreen = () => {
     const q = search.trim().toLowerCase();
     const selectedCategoryValue = CATEGORY_VALUE_MAP[selectedCategory];
 
-    return recipes
+    const filtered = recipes
       .filter((item) => {
         const matchesCategory =
           selectedCategoryValue === null ||
@@ -190,7 +216,26 @@ const AdminRecipesScreen = () => {
         );
       })
       .sort((a, b) => a.name.localeCompare(b.name, "ko"));
-  }, [recipes, search, selectedCategory, visibilityFilter]);
+
+    const sorted = [...filtered].sort((a, b) => {
+      switch (sortBy) {
+        case "brand":
+          return (a.brand ?? "").localeCompare(b.brand ?? "", "ko");
+        case "category":
+          return (a.category ?? "").localeCompare(b.category ?? "", "ko");
+        case "updatedAt": {
+          const aTime = a.updatedAt?.toDate?.()?.getTime?.() ?? 0;
+          const bTime = b.updatedAt?.toDate?.()?.getTime?.() ?? 0;
+          return bTime - aTime;
+        }
+        case "name":
+        default:
+          return a.name.localeCompare(b.name, "ko");
+      }
+    });
+
+    return sorted;
+  }, [recipes, search, selectedCategory, visibilityFilter, sortBy]);
 
   const handleTogglePublic = async (item: RecipeItem) => {
     if (!user) return;
@@ -198,6 +243,12 @@ const AdminRecipesScreen = () => {
     try {
       setTogglingId(item.id);
       await setRecipePublic(item.id, !(item.isPublic ?? true), user.uid);
+      if (reportIdParam) {
+        await updateReportStatus(reportIdParam, {
+          status: "done",
+          adminMemo: "제보를 통해 수정 완료",
+        });
+      }
     } finally {
       setTogglingId(null);
     }
@@ -244,17 +295,32 @@ const AdminRecipesScreen = () => {
         ListHeaderComponent={
           <>
             <View style={styles.headerRow}>
-              <Pressable onPress={() => router.back()} hitSlop={8}>
-                <Ionicons
-                  name="chevron-back"
-                  size={22}
-                  color={COLORS.semantic.textPrimary}
-                />
-              </Pressable>
+              <View style={styles.headerSide}>
+                <Pressable onPress={() => router.back()} hitSlop={8}>
+                  <Ionicons
+                    name="chevron-back"
+                    size={22}
+                    color={COLORS.semantic.textPrimary}
+                  />
+                </Pressable>
+              </View>
 
-              <AppText preset="h1">음료 메뉴 관리</AppText>
+              <View style={styles.headerTitleWrap}>
+                <AppText preset="h1">음료 메뉴 관리</AppText>
+              </View>
 
-              <View style={styles.headerSpacer} />
+              <View style={[styles.headerSide, styles.headerSideRight]}>
+                <Pressable
+                  style={styles.addRecipeButton}
+                  onPress={() => router.push("/admin/recipes/new")}
+                >
+                  <Ionicons
+                    name="add"
+                    size={18}
+                    color={COLORS.semantic.textPrimary}
+                  />
+                </Pressable>
+              </View>
             </View>
 
             <View style={[styles.sectionCard, styles.searchCard]}>
@@ -343,6 +409,39 @@ const AdminRecipesScreen = () => {
               </View>
             </View>
 
+            <View style={[styles.sectionCard, { marginBottom: 14 }]}>
+              <AppText preset="h2" style={styles.sectionTitle}>
+                정렬
+              </AppText>
+
+              <View style={styles.categoryWrap}>
+                {SORT_OPTIONS.map((option) => {
+                  const selected = sortBy === option.key;
+
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.categoryChip,
+                        selected && styles.categoryChipActive,
+                      ]}
+                      onPress={() => setSortBy(option.key)}
+                    >
+                      <AppText
+                        preset="body"
+                        style={[
+                          styles.categoryChipText,
+                          selected && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
             <View style={styles.menuCard}>
               <View style={[styles.menuCardHeader, { marginBottom: 0 }]}>
                 <AppText preset="h2">메뉴 {filteredRecipes.length}개</AppText>
@@ -366,7 +465,14 @@ const AdminRecipesScreen = () => {
           >
             <Pressable
               style={styles.recipeRow}
-              onPress={() => router.push(`/admin/recipes/${item.id}`)}
+              onPress={() => {
+                if (reportIdParam) return;
+
+                router.push({
+                  pathname: "/admin/recipes/[id]",
+                  params: { id: item.id },
+                });
+              }}
             >
               <View style={styles.recipeMain}>
                 <DrinkIcon iconKey={item.drinkIconKey} size={28} />
@@ -379,7 +485,8 @@ const AdminRecipesScreen = () => {
                   {getCategoryLabel(item.category)}
                 </AppText>
 
-                <View
+              <View style={styles.footerRow}>
+                  <View
                   style={[
                     styles.publicBadge,
                     item.isPublic === false
@@ -391,6 +498,11 @@ const AdminRecipesScreen = () => {
                     {item.isPublic === false ? "숨김" : "공개"}
                   </AppText>
                 </View>
+                <AppText preset="caption" style={styles.recipeMeta}>
+                  수정일: {formatDate(item.updatedAt)}
+                </AppText>
+              </View>
+              
               </View>
 
               <Switch
@@ -411,6 +523,16 @@ const AdminRecipesScreen = () => {
 };
 
 export default AdminRecipesScreen;
+
+function formatDate(value: any) {
+  const date = value?.toDate?.() ?? null;
+  if (!date) return "없음";
+
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const d = date.getDate();
+  return `${y}.${m}.${d}`;
+}
 
 const styles = StyleSheet.create({
   safe: {
@@ -449,14 +571,33 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
   },
   headerRow: {
+    alignSelf: "stretch",
     height: 40,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 14,
   },
-  headerSpacer: {
-    width: 22,
+  headerSide: {
+    width: 48,
+    justifyContent: "center",
+  },
+  headerSideRight: {
+    alignItems: "flex-end",
+  },
+  headerTitleWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addRecipeButton: {
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: COLORS.semantic.primary,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   sectionCard: {
     borderRadius: 22,
@@ -590,4 +731,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.ui.border,
     marginVertical: 10,
   },
+  footerRow: {
+    width:'100%',
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    gap: 10
+  }
 });

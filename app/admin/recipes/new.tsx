@@ -1,5 +1,4 @@
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -9,15 +8,10 @@ import {
   TextInput,
   View,
 } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/src/providers/AuthProvider";
-import {
-  getRecipeById,
-  updateRecipe,
-  type Recipe,
-  updateReportStatus,
-} from "@/src/lib/admin/adminApi";
+import { createRecipe, updateReportStatus } from "@/src/lib/admin/adminApi";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -34,6 +28,17 @@ import {
 } from "@/src/constants/icons";
 import BrandField from "@/src/components/common/BrandField";
 
+type RecipeFormValues = {
+  name: string;
+  category: string;
+  drinkIconKey: string;
+  calendarIconKey: string;
+  mlPerServing: string;
+  caffeineMgPerServing: string;
+  sugarGPerServing: string;
+  isWaterOnly: boolean;
+};
+
 const CATEGORY_OPTIONS = [
   { value: "other", label: "기타" },
   { value: "latte", label: "라떼" },
@@ -48,17 +53,6 @@ const CATEGORY_OPTIONS = [
   { value: "carbonated", label: "탄산" },
   { value: "frappe", label: "프라페" },
 ] as const;
-
-type RecipeFormValues = {
-  name: string;
-  category: string;
-  drinkIconKey: string;
-  calendarIconKey: string;
-  mlPerServing: string;
-  caffeineMgPerServing: string;
-  sugarGPerServing: string;
-  isWaterOnly: boolean;
-};
 
 function validateRecipeForm(values: RecipeFormValues) {
   const errors: string[] = [];
@@ -115,20 +109,22 @@ function validateRecipeForm(values: RecipeFormValues) {
   return { errors, warnings };
 }
 
-const RecipeDetailScreen = () => {
+const NewRecipeScreen = () => {
   const router = useRouter();
-  const { id, reportId } = useLocalSearchParams<{
-    id: string;
-    reportId?: string;
-  }>();
   const { user } = useAuth();
-  const reportIdParam = Array.isArray(reportId) ? reportId[0] : reportId;
+  const params = useLocalSearchParams<{
+    reportId?: string;
+    prefillBrand?: string;
+    prefillName?: string;
+  }>();
+  const reportId = Array.isArray(params.reportId)
+    ? params.reportId[0]
+    : params.reportId;
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [name, setName] = useState("");
-  const [brand, setBrand] = useState("");
+  const [name, setName] = useState(params.prefillName ?? "");
+  const [brand, setBrand] = useState(params.prefillBrand ?? "");
   const [category, setCategory] = useState<string>("other");
   const [drinkIconKey, setDrinkIconKey] = useState("");
   const [calendarIconKey, setCalendarIconKey] = useState("");
@@ -144,42 +140,20 @@ const RecipeDetailScreen = () => {
   const [iconPickerTarget, setIconPickerTarget] = useState<
     "drink" | "ingredient" | null
   >(null);
+
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
-  useEffect(() => {
-    const run = async () => {
-      if (!id) return;
-
-      const recipe = (await getRecipeById(id)) as Recipe | null;
-
-      if (!recipe) {
-        setLoading(false);
-        return;
-      }
-
-      setName(recipe.name ?? "");
-      setBrand(recipe.brand ?? "");
-      setCategory(recipe.category ?? "other");
-      setDrinkIconKey(recipe.drinkIconKey ?? "");
-      setCalendarIconKey(recipe.calendarIconKey ?? "");
-      setMlPerServing(String(recipe.mlPerServing ?? ""));
-      setCaffeineMgPerServing(String(recipe.caffeineMgPerServing ?? ""));
-      setSugarGPerServing(String(recipe.sugarGPerServing ?? ""));
-      setIsWaterOnly(Boolean(recipe.isWaterOnly));
-      setIsPublic(recipe.isPublic !== false);
-
-      setAliases(recipe.aliases ?? []);
-      setSearchKeywords(recipe.searchKeywords ?? []);
-      setTags(recipe.tags ?? []);
-
-      setLoading(false);
-    };
-    run();
-  }, [id]);
+  const canSave =
+    name.trim().length > 0 &&
+    category.trim().length > 0 &&
+    drinkIconKey.trim().length > 0 &&
+    calendarIconKey.trim().length > 0 &&
+    Number(mlPerServing || 0) > 0 &&
+    !saving;
 
   const handleSave = async () => {
-    if (!id || !user) return;
+    if (!user) return;
 
     const { errors, warnings } = validateRecipeForm({
       name,
@@ -202,8 +176,7 @@ const RecipeDetailScreen = () => {
     try {
       setSaving(true);
 
-      await updateRecipe(
-        id,
+      await createRecipe(
         {
           name: name.trim(),
           brand: brand.trim(),
@@ -223,33 +196,23 @@ const RecipeDetailScreen = () => {
         user.uid,
       );
 
-      if (reportIdParam) {
-        await updateReportStatus(reportIdParam, {
+      if (reportId) {
+        await updateReportStatus(reportId, {
           status: "done",
-          adminMemo: "제보 반영 완료",
+          adminMemo: "관리자 페이지에서 레시피 반영 완료",
         });
       }
 
-      Toast.show({ type: "success", text1: "레시피를 저장했어요" });
+      Toast.show({ type: "success", text1: "새 레시피를 추가했어요" });
       setValidationErrors([]);
       setValidationWarnings([]);
       router.back();
     } catch {
-      Toast.show({ type: "error", text1: "저장에 실패했어요" });
+      Toast.show({ type: "error", text1: "레시피 추가에 실패했어요" });
     } finally {
       setSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -267,7 +230,7 @@ const RecipeDetailScreen = () => {
               />
             </Pressable>
 
-            <AppText preset="h1">레시피 수정</AppText>
+            <AppText preset="h1">새 레시피 추가</AppText>
 
             <View style={{ width: 22 }} />
           </View>
@@ -404,48 +367,43 @@ const RecipeDetailScreen = () => {
 
           {validationErrors.length > 0 ? (
             <View style={styles.validationBoxError}>
-              <AppText preset="caption" style={styles.validationBoxTitleError}>
-                저장 전에 확인해 주세요
-              </AppText>
-
-              {validationErrors.map((message) => (
-                <AppText key={message} preset="body" style={styles.validationBoxText}>
-                  • {message}
+                <AppText preset='caption' style={styles.validationBoxTitleError}>
+                    저장 전에 확인해 주세요
                 </AppText>
-              ))}
-            </View>
-          ) : null}
 
-          {validationWarnings.length > 0 ? (
+                {validationErrors.map((message) => (
+                    <AppText key={message} preset='body' style={styles.validationBoxText}>
+                        • {message}
+                    </AppText>
+                ))}
+            </View>
+          ): null}
+            
+            {validationWarnings.length > 0 ? (
             <View style={styles.validationBoxWarning}>
-              <AppText preset="caption" style={styles.validationBoxTitleWarning}>
-                참고하면 좋은 항목
-              </AppText>
-
-              {validationWarnings.map((message) => (
-                <AppText key={message} preset="body" style={styles.validationBoxText}>
-                  • {message}
+                <AppText preset='caption' style={styles.validationBoxTitleWarning}>
+                    참고하면 좋은 항목
                 </AppText>
-              ))}
+
+                {validationWarnings.map((message) => (
+                    <AppText key={message} preset='body' style={styles.validationBoxText}>
+                        • {message}
+                    </AppText>
+                ))}
             </View>
-          ) : null}
+          ): null}
+          
 
           <Pressable
             style={[
               styles.saveButton,
-              !(
-                name.trim().length > 0 &&
-                category.trim().length > 0 &&
-                drinkIconKey.trim().length > 0 &&
-                calendarIconKey.trim().length > 0 &&
-                Number(mlPerServing || 0) > 0
-              ) && styles.saveButtonInactive,
+              !canSave && styles.saveButtonInactive,
               saving && styles.saveButtonDisabled,
             ]}
             onPress={handleSave}
             disabled={saving}
           >
-            <AppText preset="h2">{saving ? "저장 중..." : "저장하기"}</AppText>
+            <AppText preset="h2">{saving ? "추가 중..." : "추가하기"}</AppText>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -490,9 +448,9 @@ const RecipeDetailScreen = () => {
       ) : null}
     </SafeAreaView>
   );
-};
+}
 
-export default RecipeDetailScreen;
+export default NewRecipeScreen;
 
 function splitCommaText(text: string) {
   return text
@@ -851,8 +809,8 @@ const styles = StyleSheet.create({
   validationBoxError: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E7B6B6",
-    backgroundColor: "#FFF4F4",
+    borderColor: '#E7B6B6',
+    backgroundColor: '#FFF4F4',
     padding: 12,
     gap: 4,
   },
@@ -860,19 +818,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E6D4A8",
-    backgroundColor: "#FFF9EC",
+    backgroundColor: '#FFF9EC',
     padding: 12,
     gap: 4,
   },
-  validationBoxTitleError: {
-    color: "#B24A4A",
+  validationBoxTitleError:  {
+    color: '#B24A4A',
     marginBottom: 2,
   },
   validationBoxTitleWarning: {
-    color: "#8A6A1F",
+    color: '#8A6A1F',
     marginBottom: 2,
   },
   validationBoxText: {
-    color: COLORS.semantic.textSecondary,
-  },
+    color: COLORS.semantic.textSecondary
+  }
 });

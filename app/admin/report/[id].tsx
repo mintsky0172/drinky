@@ -143,7 +143,7 @@ const AdminReportDetailScreen = () => {
               </AppText>
             ) : null}
 
-            <AppText preset='h3' style={styles.metaText}>
+            <AppText preset="h3" style={styles.metaText}>
               • 작성자: {item.createdByNickname || "익명"}
             </AppText>
 
@@ -205,10 +205,50 @@ const AdminReportDetailScreen = () => {
             onPress={handleSave}
             disabled={saving}
           >
-            <AppText preset='h2'>
-              {saving ? "저장 중..." : "저장하기"}
-            </AppText>
+            <AppText preset="h2">{saving ? "저장 중..." : "저장하기"}</AppText>
           </Pressable>
+
+          {item.type === "new_drink" && (
+            <Pressable
+              style={styles.linkRecipeButton}
+              onPress={() => {
+                router.push({
+                  pathname: "/admin/recipes/new",
+                  params: {
+                    reportId: item.id,
+                    prefillBrand: item.brand ?? "",
+                    prefillName: item.drinkName ?? "",
+                  },
+                });
+              }}
+            >
+              <Ionicons name="add" size={18} color={COLORS.base.creamPaper} />
+              <AppText preset="h2" style={styles.linkRecipeButtonText}>
+                이 음료 반영하기
+              </AppText>
+            </Pressable>
+          )}
+
+          {item.type !== "new_drink" && (
+            <Pressable
+              style={styles.linkRecipeGhostButton}
+              onPress={() => {
+                router.push({
+                  pathname: "/admin/recipes",
+                  params: {
+                    reportId: item.id,
+                    prefillBrand: item.brand ?? "",
+                    prefillName: item.drinkName ?? "",
+                  },
+                });
+              }}
+            >
+              <Ionicons name="search-outline" size={18} color={COLORS.semantic.textPrimary} />
+              <AppText preset="h2" style={styles.linkRecipeGhostButtonText}>
+                기존 음료 수정하기
+              </AppText>
+            </Pressable>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -239,7 +279,7 @@ const styles = StyleSheet.create({
     height: 40,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
+    justifyContent: "space-between",
   },
   sectionCard: {
     borderRadius: 22,
@@ -259,8 +299,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   statusRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginBottom: 12,
   },
@@ -299,10 +339,33 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 16,
     backgroundColor: COLORS.base.warmBeige,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   saveButtonDisabled: {
     opacity: 0.45,
+  },
+  linkRecipeButton: {
+    height: 50 ,
+    borderRadius: 16,
+    backgroundColor: COLORS.semantic.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  linkRecipeButtonText: {
+    color: COLORS.base.creamPaper,
+  },
+  linkRecipeGhostButton: {
+    height: 50,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.semantic.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
 });

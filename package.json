@@ -9,13 +9,14 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "icons:gen": "ts-node scripts/generateDrinkIcons.ts",
+    "icons:gen": "ts-node scripts/generateDrinkIcons.ts && ts-node scripts/generateIconLabels.ts",
+    "icons:labels": "ts-node scripts/generateIconLabels.ts",
     "seed:recipes:gen": "ts-node seed/generateRecipes.ts",
     "seed:recipes:up": "ts-node seed/uploadRecipes.ts",
     "seed:recipes": "npm run seed:recipes:gen && npm run seed:recipes:up",
     "seed:popularity:sync": "ts-node seed/syncRecipePopularity.ts",
-     "seed:recipes:validate": "ts-node seed/validateRecipes.ts",
-     "seed:recipes:safe": "npm run seed:recipes:validate && npm run seed:recipes:up"
+    "seed:recipes:validate": "ts-node seed/validateRecipes.ts",
+    "seed:recipes:safe": "npm run seed:recipes:validate && npm run seed:recipes:up"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
@@ -26,6 +27,7 @@
     "@react-navigation/native": "^7.1.28",
     "@react-navigation/native-stack": "^7.13.0",
     "expo": "~54.0.33",
+    "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-constants": "~18.0.13",
     "expo-dev-client": "~6.0.20",
