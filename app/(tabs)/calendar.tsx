@@ -19,9 +19,17 @@ import {
 import { db } from "@/src/lib/firebase";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { useRouter } from "expo-router";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  query,
+  where,
+} from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Pressable, ScrollView, StyleSheet } from "react-native";
+import { Alert, View, Pressable, ScrollView, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
@@ -181,6 +189,7 @@ function resolveDrinkIconKey(params: {
 
 function Calendar() {
   const { user, initializing } = useAuth();
+  const router = useRouter();
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -198,6 +207,8 @@ function Calendar() {
     Record<string, RecipeLookupItem>
   >({});
 
+  const [deleting, setDeleting] = useState(false);
+
   const monthLabel = useMemo(() => getMonthLabel(currentMonth), [currentMonth]);
 
   const cells = useMemo(() => buildMonthCells(currentMonth), [currentMonth]);
@@ -208,6 +219,7 @@ function Calendar() {
     () => toDateKey(selectedDate),
     [selectedDate],
   );
+
 
   useEffect(() => {
     const recipesRef = collection(db, "recipes");
@@ -465,10 +477,36 @@ function Calendar() {
     return result;
   }, [entriesByDateKey, summariesByDateKey]);
 
-  const selectedOneLine = useMemo(
-    () => calendarMetaByDateKey[selectedDateKey]?.oneLine ?? "",
-    [calendarMetaByDateKey, selectedDateKey],
-  );
+  const openDeleteConfirm = (entry: EntryRecord) => {
+    if (deleting) return;
+
+    Alert.alert("기록 삭제", "이 기록을 삭제할까요?", [
+      { text: "취소", style: "cancel" },
+      {
+        text: "삭제",
+        style: "destructive",
+        onPress: () => {
+          void handleDeleteEntry(entry);
+        },
+      },
+    ]);
+  };
+
+  const handleDeleteEntry = async (entry: EntryRecord) => {
+    if (!user) return;
+
+    try {
+      setDeleting(true);
+
+      await deleteDoc(doc(db, "users", user.uid, "entries", entry.id));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleEditEntry = (entryId: string) => {
+    router.push({ pathname: "/record/edit", params: { entryId } });
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -584,34 +622,32 @@ function Calendar() {
             </View>
 
             <View style={styles.monthBadge}>
-              <AppText style={styles.monthBadgeText}>기록 수: {monthTotals.entryCount.toLocaleString()}개
+              <AppText style={styles.monthBadgeText}>
+                기록 수: {monthTotals.entryCount.toLocaleString()}개
               </AppText>
-              
             </View>
           </View>
 
           <View style={styles.monthSummaryGrid}>
-            
-
             <View style={[styles.metricCard, styles.metricCardBlue]}>
               <AppText style={styles.metricValue}>
                 {monthTotals.avgWaterMl.toLocaleString()} mL
               </AppText>
-              <AppText style={styles.metricLabel}>일평균{'\n'}수분💧</AppText>
+              <AppText style={styles.metricLabel}>일평균{"\n"}수분💧</AppText>
             </View>
 
             <View style={[styles.metricCard, styles.metricCardBrown]}>
               <AppText style={styles.metricValue}>
                 {monthTotals.avgCaffeineMg.toLocaleString()} mg
               </AppText>
-              <AppText style={styles.metricLabel}>일평균{'\n'}카페인☕️</AppText>
+              <AppText style={styles.metricLabel}>일평균{"\n"}카페인☕️</AppText>
             </View>
 
             <View style={[styles.metricCard, styles.metricCardPink]}>
               <AppText style={styles.metricValue}>
                 {monthTotals.avgSugarG.toLocaleString()} g
               </AppText>
-              <AppText style={styles.metricLabel}>일평균{'\n'}당류🍭</AppText>
+              <AppText style={styles.metricLabel}>일평균{"\n"}당류🍭</AppText>
             </View>
           </View>
         </View>
@@ -642,47 +678,82 @@ function Calendar() {
               </AppText>
               <AppText style={styles.footerMetricLabel}>카페인</AppText>
             </View>
-            
-            <View style={styles.footerMetricPill}>  
+
+            <View style={styles.footerMetricPill}>
               <AppText style={styles.footerMetricValue}>
                 {selectedTotals.sugarG.toLocaleString()} g
               </AppText>
-              <AppText style={styles.footerMetricLabel}>당</AppText>
+              <AppText style={styles.footerMetricLabel}>당류</AppText>
             </View>
-
           </View>
 
           <View style={styles.entrySection}>
-            <AppText style={{ ...TYPOGRAPHY.preset.h3, color: COLORS.semantic.textPrimary }}>
+            <AppText
+              style={{
+                ...TYPOGRAPHY.preset.h3,
+                color: COLORS.semantic.textPrimary,
+              }}
+            >
               마신 음료
             </AppText>
 
-          <View style={styles.entryList}>
-            {selectedEntriesWithIcons.length > 0 ? (
-              selectedEntriesWithIcons.map((entry) => {
-                const amountText =
-                  entry.unit === "cup"
-                    ? `${Math.round(entry.servings ?? 0)}잔`
-                    : `${Math.round(entry.totalMl ?? 0)}mL`;
+            <View style={styles.entryList}>
+              {selectedEntriesWithIcons.length > 0 ? (
+                selectedEntriesWithIcons.map((entry) => {
+                  const amountText =
+                    entry.unit === "cup"
+                      ? `${Math.round(entry.servings ?? 0)}잔`
+                      : `${Math.round(entry.totalMl ?? 0)}mL`;
 
-                return (
-                  <View key={entry.id} style={styles.entryRow}>
-                    <DrinkIcon iconKey={entry.resolvedDrinkIconKey} size={28} />
-                    <View style={styles.entryInfo}>
-                      <AppText style={styles.entryName}>
-                        {entry.drinkName}
-                      </AppText>
-                      <AppText style={styles.entryMeta}>{amountText}</AppText>
+                  return (
+                    <View key={entry.id} style={styles.entryRow}>
+                      <View style={styles.entryLeft}>
+                        <DrinkIcon
+                          iconKey={entry.resolvedDrinkIconKey}
+                          size={28}
+                        />
+                        <View style={styles.entryInfo}>
+                          <AppText style={styles.entryName}>
+                            {entry.drinkName}
+                          </AppText>
+                          <AppText style={styles.entryMeta}>
+                            {amountText}
+                          </AppText>
+                        </View>
+                      </View>
+
+                      <View style={styles.entryActions}>
+                        <Pressable
+                          style={styles.entryActionButton}
+                          onPress={() => handleEditEntry(entry.id)}
+                        >
+                          <Ionicons
+                            name="create-outline"
+                            size={16}
+                            color={COLORS.semantic.textMuted}
+                          />
+                        </Pressable>
+
+                        <Pressable
+                          style={styles.entryActionButton}
+                          onPress={() => openDeleteConfirm(entry)}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={16}
+                            color={COLORS.semantic.textMuted}
+                          />
+                        </Pressable>
+                      </View>
                     </View>
-                  </View>
-                );
-              })
-            ) : (
-              <AppText style={styles.footerHint}>
-                이 날짜에는 기록이 없어요.
-              </AppText>
-            )}
-          </View>
+                  );
+                })
+              ) : (
+                <AppText style={styles.footerHint}>
+                  이 날짜에는 기록이 없어요.
+                </AppText>
+              )}
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -760,9 +831,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.base.warmBeige,
   },
   selectedCell: {
-    borderColor: '#8C6D5A',
+    borderColor: "#8C6D5A",
     borderWidth: 1.5,
-    backgroundColor: '#d8bc9c'
+    backgroundColor: "#d8bc9c",
   },
   dayText: {
     ...TYPOGRAPHY.preset.h3,
@@ -782,7 +853,7 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textPrimary,
   },
   selectedText: {
-    color: '#5E4638',
+    color: "#5E4638",
   },
   iconSlot: {
     position: "absolute",
@@ -835,7 +906,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: COLORS.ui.border,
   },
@@ -861,17 +932,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderWidth: 1,
     borderColor: COLORS.ui.border,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   metricCardBlue: {
-    backgroundColor: '#EEF6FF',
+    backgroundColor: "#EEF6FF",
   },
   metricCardBrown: {
     backgroundColor: COLORS.base.warmBeige,
   },
   metricCardPink: {
-    backgroundColor: '#FFF1F3',
+    backgroundColor: "#FFF1F3",
   },
   metricValue: {
     ...TYPOGRAPHY.preset.h2,
@@ -881,7 +952,7 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textSecondary,
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
   monthSummaryTitle: {
     ...TYPOGRAPHY.preset.h2,
@@ -925,7 +996,7 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
     marginBottom: 8,
     borderRadius: 999,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: COLORS.ui.border,
     paddingHorizontal: 8,
@@ -952,8 +1023,27 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: 'space-between',
     gap: 10,
     paddingVertical: 4,
+  },
+  entryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  entryActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  entryActionButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   entryInfo: {
     flex: 1,
@@ -968,6 +1058,7 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
     marginTop: 2,
   },
+
   oneLineBox: {
     marginBottom: 12,
     padding: 12,
@@ -992,7 +1083,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 8,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: COLORS.ui.border,
     alignItems: "center",

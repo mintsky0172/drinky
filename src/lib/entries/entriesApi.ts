@@ -4,6 +4,7 @@ import {
     collection,
     deleteDoc,
     doc,
+    getDoc,
     serverTimestamp,
     updateDoc,
 } from 'firebase/firestore';
@@ -24,6 +25,16 @@ export async function addEntry(payload: EntryWritePayload) {
     const uid = requireUid();
     const ref = collection(db, 'users', uid, 'entries');
     return await addDoc(ref, payload);
+}
+
+export async function getEntryById(entryId: string) {
+    const uid = requireUid();
+    const ref = doc(db, 'users', uid, 'entries', entryId);
+    const snap = await getDoc(ref);
+
+    return snap.exists()
+        ? ({ id: snap.id, ...(snap.data() as EntryDoc) })
+        : null;
 }
 
 export async function updateEntry(entryId: string, patch: Partial<EntryDoc>) {

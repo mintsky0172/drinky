@@ -1,5 +1,5 @@
 import { db } from "@/src/lib/firebase";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 
 export type UserGoals = {
   waterMl: number;
@@ -34,17 +34,37 @@ export async function ensureUserDoc(params: {
 }) {
   const { uid, email, nickname } = params;
   const trimmedNickname = nickname?.trim();
+  const ref = doc(db, "users", uid);
+  const snap = await getDoc(ref);
+  const existing = snap.exists() ? snap.data() : {};
+
+  const payload: Record<string, unknown> = {
+    updatedAt: serverTimestamp(),
+  };
+
+  if (!existing.createdAt) {
+    payload.createdAt = serverTimestamp();
+  }
+
+  if (!existing.email && email.trim()) {
+    payload.email = email.trim();
+  }
+
+  if (!existing.nickname && trimmedNickname) {
+    payload.nickname = trimmedNickname;
+  }
+
+  if (!existing.goals) {
+    payload.goals = DEFAULT_GOALS;
+  }
+
+  if (typeof existing.streak !== "number") {
+    payload.streak = 0;
+  }
 
   await setDoc(
-    doc(db, "users", uid),
-    {
-      email,
-      ...(trimmedNickname ? { nickname: trimmedNickname } : {}),
-      goals: DEFAULT_GOALS,
-      streak: 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    },
+    ref,
+    payload,
     { merge: true }, // 이미 있으면 유지 + 없는 필드만 채움
   );
 }

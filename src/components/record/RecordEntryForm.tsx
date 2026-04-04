@@ -12,7 +12,6 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TextField from "@/src/components/ui/TextField";
-import AppText from "@/src/components/ui/AppText";
 import { COLORS } from "@/src/constants/colors";
 import AppButton from "@/src/components/ui/AppButton";
 import DrinkSearchModal from "@/src/components/record/DrinkSearchModal";
@@ -22,7 +21,7 @@ import { TYPOGRAPHY } from "@/src/constants/typography";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
-import { addEntry, getEntryById, updateEntry } from "@/src/lib/entries/entriesApi";
+import { addEntry } from "@/src/lib/entries/entriesApi";
 import { db } from "@/src/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import {
@@ -272,13 +271,9 @@ function SelectModal({
 
 const RecordCreateScreen = () => {
   const router = useRouter();
-  const params = useLocalSearchParams<{ date?: string; entryId?: string }>();
+  const params = useLocalSearchParams<{ date?: string }>();
   const { user } = useAuth();
   const scrollRef = useRef<ScrollView>(null);
-  const entryId = Array.isArray(params.entryId)
-    ? params.entryId[0]
-    : params.entryId;
-  const isEditMode = Boolean(entryId);
   const initialSelectedDate = useMemo(
     () => parseDateParam(params.date) ?? new Date(),
     [params.date],
@@ -308,8 +303,6 @@ const RecordCreateScreen = () => {
   const [sizeModal, setSizeModal] = useState(false);
 
   const [memo, setMemo] = useState("");
-  const [editLoading, setEditLoading] = useState(isEditMode);
-  const [editEntry, setEditEntry] = useState<any | null>(null);
 
   // 날짜/시간 피커
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -366,75 +359,6 @@ const RecordCreateScreen = () => {
 
     return unsub;
   }, []);
-
-  useEffect(() => {
-    if (!isEditMode || !entryId) return;
-
-    let cancelled = false;
-
-    const run = async () => {
-      try {
-        setEditLoading(true);
-        const entry = await getEntryById(entryId);
-        if (!entry || cancelled) {
-          if (!cancelled) {
-            Alert.alert("안내", "수정할 기록을 찾지 못했어요.");
-            router.back();
-          }
-          return;
-        }
-
-        if (!cancelled) {
-          setEditEntry(entry);
-        }
-      } finally {
-        if (!cancelled) {
-          setEditLoading(false);
-        }
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [entryId, isEditMode, router]);
-
-  useEffect(() => {
-    if (!editEntry) return;
-
-    const consumedDate =
-      typeof (editEntry.consumedAt as any)?.toDate === "function"
-        ? (editEntry.consumedAt as any).toDate()
-        : new Date();
-    const selectedOnlyDate = new Date(
-      consumedDate.getFullYear(),
-      consumedDate.getMonth(),
-      consumedDate.getDate(),
-    );
-
-    setDate(selectedOnlyDate);
-    setConsumedAt(consumedDate);
-    setBrand(editEntry.brandLabel ?? "");
-    setServings(String(editEntry.servings ?? 1));
-    setUnit(editEntry.unit ?? "cup");
-    setMemo(editEntry.memo ?? "");
-    setSearch(editEntry.drinkName ?? "");
-    setSearchQuery(editEntry.drinkName ?? "");
-
-    const matched =
-      recipeItems.find((item) => item.id === editEntry.drinkId) ??
-      recipeItems.find(
-        (item) =>
-          item.name.trim().toLowerCase() ===
-          String(editEntry.drinkName ?? "").trim().toLowerCase(),
-      ) ??
-      null;
-    if (matched) {
-      setPicked(matched);
-    }
-  }, [editEntry, recipeItems]);
 
   useEffect(() => {
     if (!user) {
@@ -636,20 +560,8 @@ const RecordCreateScreen = () => {
         brandLabel: brand,
       });
 
-      if (isEditMode) {
-        if (!entryId) return;
-        const { createdAt: _createdAt, ...patch } = payload;
-        await updateEntry(entryId, patch);
-        Alert.alert("수정 완료", "기록을 수정했어요.", [
-          {
-            text: "확인",
-            onPress: () => router.back(),
-          },
-        ]);
-      } else {
-        await addEntry(payload);
-        setSaveDone(true);
-      }
+      await addEntry(payload);
+      setSaveDone(true);
     } catch (e: any) {
       Alert.alert("저장 실패", String(e?.message ?? e));
     } finally {
@@ -666,11 +578,6 @@ const RecordCreateScreen = () => {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.container}>
-        {editLoading ? (
-          <View style={styles.editLoadingOverlay}>
-            <AppText preset="body">기록을 불러오는 중이에요...</AppText>
-          </View>
-        ) : null}
         {/* Body */}
         <ScrollView
           ref={scrollRef}
@@ -794,7 +701,7 @@ const RecordCreateScreen = () => {
         {/* 저장 버튼 */}
         <View style={{ paddingHorizontal: 16, paddingVertical: 22 }}>
           <AppButton
-            label={isEditMode ? "수정" : "저장"}
+            label="저장"
             variant="primary"
             onPress={onSave}
             loading={saving}
@@ -936,26 +843,24 @@ const RecordCreateScreen = () => {
         )}
 
         {/* 저장 완료 모달 */}
-        {!isEditMode ? (
-          <SaveResultModal
-            visible={saveDone}
-            onGoHome={() => {
-              setSaveDone(false);
-              router.replace("/(tabs)");
-            }}
-            onContinue={() => {
-              setSaveDone(false);
-              setPicked(null);
-              setSearch("");
-              setBrand("");
-              setServings("1");
-              setUnit("cup");
-              setSizeLabel("M");
-              setMemo("");
-              Alert.alert("안내", "계속 기록해 보아요!");
-            }}
-          />
-        ) : null}
+        <SaveResultModal
+          visible={saveDone}
+          onGoHome={() => {
+            setSaveDone(false);
+            router.replace("/(tabs)");
+          }}
+          onContinue={() => {
+            setSaveDone(false);
+            setPicked(null);
+            setSearch("");
+            setBrand("");
+            setServings("1");
+            setUnit("cup");
+            setSizeLabel("M");
+            setMemo("");
+            Alert.alert("안내", "계속 기록해 보아요!");
+          }}
+        />
       </View>
     </SafeAreaView>
   );
@@ -966,13 +871,6 @@ export default RecordCreateScreen;
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "transparent" },
   container: { flex: 1, paddingTop: 20, paddingHorizontal: 20 },
-  editLoadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-  },
   searchWrap: {
     paddingHorizontal: 16,
     paddingTop: 0,
