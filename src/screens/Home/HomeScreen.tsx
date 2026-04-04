@@ -17,7 +17,9 @@ import React, {
   useRef,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import ConfettiCannon from "react-native-confetti-cannon";
+import * as StoreReview from "expo-store-review";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -68,6 +70,9 @@ const DEFAULT_GOALS = {
   caffeineMg: 300,
   sugarG: 50,
 };
+
+const REVIEW_PROMPT_LAST_SHOWN_KEY = "reviewPrompt:lastShownDate";
+const REVIEW_PROMPT_RANDOM_THRESHOLD = 0.25;
 
 const balancedMessages = [
   "균형 잡힌 하루에요!",
@@ -259,6 +264,7 @@ const HomeScreen = () => {
     [overrideIconKey, topIconKey],
   );
   const [showConfetti, setShowConfetti] = useState(false);
+  const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
 
   const summaryText = useMemo(
     () =>
@@ -274,6 +280,7 @@ const HomeScreen = () => {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const reviewPromptCheckedDateRef = useRef<string | null>(null);
 
   const getSummaryRef = useCallback(() => {
     if (!user) return null;
@@ -521,6 +528,50 @@ const HomeScreen = () => {
     const timer = setTimeout(() => setShowConfetti(false), 2400);
     return () => clearTimeout(timer);
   }, [hasSeenGoalConfettiToday, isBalanced, goalsAchieved, saveSummary]);
+
+  useEffect(() => {
+    const checkReviewPrompt = async () => {
+      if (initializing || !user) return;
+      if (reviewPromptOpen) return;
+      if (todayKey !== toDateKey(new Date())) return;
+      if (todayDrinks.length === 0) return;
+      if (reviewPromptCheckedDateRef.current === todayKey) return;
+
+      reviewPromptCheckedDateRef.current = todayKey;
+
+      const hasReviewAction = await StoreReview.hasAction();
+      if (!hasReviewAction) return;
+
+      const lastShownDate = await AsyncStorage.getItem(
+        REVIEW_PROMPT_LAST_SHOWN_KEY,
+      );
+      if (lastShownDate === todayKey) return;
+
+      if (Math.random() >= REVIEW_PROMPT_RANDOM_THRESHOLD) return;
+
+      await AsyncStorage.setItem(REVIEW_PROMPT_LAST_SHOWN_KEY, todayKey);
+      setReviewPromptOpen(true);
+    };
+
+    void checkReviewPrompt();
+  }, [initializing, reviewPromptOpen, todayDrinks.length, todayKey, user]);
+
+  const handleCloseReviewPrompt = useCallback(() => {
+    setReviewPromptOpen(false);
+  }, []);
+
+  const handlePressReview = useCallback(async () => {
+    setReviewPromptOpen(false);
+
+    try {
+      await StoreReview.requestReview();
+    } catch {
+      Toast.show({
+        type: "info",
+        text1: "리뷰 요청을 열 수 없어요.",
+      });
+    }
+  }, []);
 
   /** 2) 아이콘 선택: 즉시 저장 */
   const handleSelectIcon = async (key: IngredientIconKey) => {
@@ -807,6 +858,46 @@ const HomeScreen = () => {
             }}
           />
         ) : null}
+        <Modal
+          transparent
+          visible={reviewPromptOpen}
+          animationType="fade"
+          onRequestClose={handleCloseReviewPrompt}
+        >
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={handleCloseReviewPrompt}
+          />
+          <View style={styles.reviewPromptCard}>
+            <AppText style={styles.reviewPromptEyebrow}>
+              REVIEW REQUEST
+            </AppText>
+            <AppText style={styles.reviewPromptTitle}>
+              Drinky가 도움이 되고 있나요?
+            </AppText>
+            <AppText style={styles.reviewPromptDescription}>
+              앱스토어에 리뷰를 남겨주시면 큰 도움이 돼요.
+            </AppText>
+            <View style={styles.reviewPromptActions}>
+              <Pressable
+                style={styles.reviewPromptSecondaryButton}
+                onPress={handleCloseReviewPrompt}
+              >
+                <AppText style={styles.reviewPromptSecondaryLabel}>
+                  다음에
+                </AppText>
+              </Pressable>
+              <Pressable
+                style={styles.reviewPromptPrimaryButton}
+                onPress={handlePressReview}
+              >
+                <AppText style={styles.reviewPromptPrimaryLabel}>
+                  리뷰 남기기
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
 
         {/* CTA */}
         <AppButton
@@ -1082,5 +1173,67 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
     elevation: 8,
+  },
+  reviewPromptCard: {
+    marginHorizontal: 20,
+    marginVertical: "auto",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.white,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
+  reviewPromptEyebrow: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginBottom: 6,
+  },
+  reviewPromptTitle: {
+    ...TYPOGRAPHY.preset.h2,
+    color: COLORS.semantic.textPrimary,
+    marginBottom: 8,
+  },
+  reviewPromptDescription: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textSecondary,
+    lineHeight: 20,
+  },
+  reviewPromptActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+  },
+  reviewPromptSecondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.semantic.surface,
+  },
+  reviewPromptPrimaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.base.warmBeige,
+  },
+  reviewPromptSecondaryLabel: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+  },
+  reviewPromptPrimaryLabel: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
   },
 });
