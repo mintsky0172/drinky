@@ -1,5 +1,6 @@
 import {
   Alert,
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +17,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import ConfettiCannon from "react-native-confetti-cannon";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -182,6 +184,7 @@ function pickSummaryText(levels: {
 const HomeScreen = () => {
   const router = useRouter();
   const { user, initializing } = useAuth();
+  const { width, height } = Dimensions.get("window");
 
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const todayKey = useMemo(() => toDateKey(selectedDate), [selectedDate]);
@@ -487,6 +490,10 @@ const HomeScreen = () => {
     return () => clearTimeout(timer);
   }, [isBalanced, goalsAchieved, todayKey]);
 
+  useEffect(() => {
+    setGoalsAchieved(isBalanced);
+  }, [isBalanced]);
+
   /** 공통 저장 함수 */
   const saveSummary = async (
     patch: Partial<{ oneLine: string }> & Record<string, any>,
@@ -585,6 +592,21 @@ const HomeScreen = () => {
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
+      {showConfetti ? (
+        <View pointerEvents="none" style={styles.confettiOverlay}>
+          <ConfettiCannon
+            key={todayKey}
+            count={120}
+            origin={{ x: width / 2, y: height / 2 - 80 }}
+            explosionSpeed={250}
+            fallSpeed={3800}
+            fadeOut
+          />
+          <View style={styles.confettiModal}>
+            <AppText preset="body">하루 목표를 달성했어요. 축하드려요!</AppText>
+          </View>
+        </View>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.container}
@@ -593,10 +615,9 @@ const HomeScreen = () => {
         keyboardDismissMode="on-drag"
         automaticallyAdjustKeyboardInsets
         onTouchStart={() => {
-          if(nutritionToolTipOpen) setNutritionToolTipOpen(false);
+          if (nutritionToolTipOpen) setNutritionToolTipOpen(false);
         }}
       >
-        {showConfetti ? <Text style={styles.confettiFallback}>🎉</Text> : null}
         {/* 날짜 */}
         <Pressable
           style={styles.calendar}
@@ -694,7 +715,6 @@ const HomeScreen = () => {
                   {NUTRITION_TOOLTIP_TEXT}
                 </AppText>
               </View>
-  
             ) : null}
           </View>
         </View>
@@ -833,14 +853,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingTop: 20,
     backgroundColor: "transparent",
-
   },
-  confettiFallback: {
-    position: "absolute",
-    top: 12,
-    right: 20,
-    zIndex: 20,
-    fontSize: 26,
+  confettiOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 100,
+    elevation: 100,
   },
   sectionTop: {
     paddingHorizontal: 20,
@@ -993,19 +1012,19 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   tooltipAnchor: {
-    position: 'relative',
+    position: "relative",
   },
   tooltipBubble: {
-    position: 'absolute',
+    position: "absolute",
     top: 26,
     right: 0,
     width: 260,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.ui.border,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     padding: 12,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 10,
@@ -1013,21 +1032,21 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   tooltipArrow: {
-    position: 'absolute',
+    position: "absolute",
     top: -7,
     right: 16,
     width: 12,
     height: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderLeftWidth: 1,
     borderTopWidth: 1,
     borderColor: COLORS.ui.border,
-    transform: [{ rotate: '45deg' }],
+    transform: [{ rotate: "45deg" }],
   },
   tooltipBubbleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 6,
   },
   tooltipBubbleTitle: {
@@ -1035,6 +1054,23 @@ const styles = StyleSheet.create({
   },
   tooltipBubbleText: {
     ...TYPOGRAPHY.preset.body,
-    lineHeight: 20
-  }
+    lineHeight: 20,
+  },
+  confettiModal: {
+    backgroundColor: COLORS.base.white,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    minWidth: 240,
+    maxWidth: "82%",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
 });

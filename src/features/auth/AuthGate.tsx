@@ -10,7 +10,6 @@ export function useAuthGate(){
 
     useEffect(() => {
         const unsub = onAuthStateChanged(auth, async(user) => {
-            console.log('auth user: ', user?.uid)
             if(!user) {
                 setRoute('AUTH');
                 return;

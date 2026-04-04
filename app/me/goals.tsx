@@ -16,8 +16,6 @@ import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import AppButton from "@/src/components/ui/AppButton";
-
-import TextField from "@/src/components/ui/TextField";
 import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 
@@ -58,7 +56,7 @@ const GoalSettingsScreen = () => {
         setCaffeineText(String(g.caffeineMg ?? DEFAULT_GOALS.caffeineMg));
         setSugarText(String(g.sugarG ?? DEFAULT_GOALS.sugarG));
       } catch {
-        // TODO: 불러오기 실패해도 기본값으로 진행
+        // 불러오기 실패해도 기본값으로 진행
       }
     };
     run();

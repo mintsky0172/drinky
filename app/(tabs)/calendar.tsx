@@ -17,6 +17,7 @@ import {
   toDateKey,
 } from "@/src/lib/calendar/calendarUtils";
 import { db } from "@/src/lib/firebase";
+import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -187,6 +188,39 @@ function resolveDrinkIconKey(params: {
   });
 }
 
+function getGoalStatus(
+  current: number,
+  goal: number,
+  mode: "min" | "max",
+): "달성" | "거의" | "부족" {
+  const ratio = goal > 0 ? current / goal : 1;
+
+  if (mode === "min") {
+    if (ratio >= 1) return "달성";
+    if (ratio >= 0.85) return "거의";
+    return "부족";
+  }
+
+  if (ratio <= 1) return "달성";
+  if (ratio <= 1.15) return "거의";
+  return "부족";
+}
+
+function getGoalSummaryText(statuses: ("달성" | "거의" | "부족")[]) {
+  if (statuses.every((status) => status === "달성")) {
+    return "목표를 달성했어요!";
+  }
+
+  if (
+    statuses.filter((status) => status === "달성").length >= 2 ||
+    statuses.includes("거의")
+  ) {
+    return "목표에 거의 가까워졌어요.";
+  }
+
+  return "목표보다 조금 부족해요.";
+}
+
 function Calendar() {
   const { user, initializing } = useAuth();
   const router = useRouter();
@@ -206,6 +240,7 @@ function Calendar() {
   const [recipesByName, setRecipesByName] = useState<
     Record<string, RecipeLookupItem>
   >({});
+  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
 
   const [deleting, setDeleting] = useState(false);
 
@@ -316,6 +351,34 @@ function Calendar() {
   useEffect(() => {
     if (initializing) return;
     if (!user) {
+      setGoals(DEFAULT_GOALS);
+      return;
+    }
+
+    const userRef = doc(db, "users", user.uid);
+
+    const unsubscribe = onSnapshot(
+      userRef,
+      (snap) => {
+        const userGoals = snap.data()?.goals as Partial<UserGoals> | undefined;
+
+        setGoals({
+          waterMl: userGoals?.waterMl ?? DEFAULT_GOALS.waterMl,
+          caffeineMg: userGoals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
+          sugarG: userGoals?.sugarG ?? DEFAULT_GOALS.sugarG,
+        });
+      },
+      () => {
+        setGoals(DEFAULT_GOALS);
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user, initializing]);
+
+  useEffect(() => {
+    if (initializing) return;
+    if (!user) {
       setSummariesByDateKey({});
       return;
     }
@@ -409,6 +472,20 @@ function Calendar() {
       avgSugarG: Math.round(totals.sugarG / divisor),
     };
   }, [entriesByDateKey]);
+
+  const monthGoalComparison = useMemo(() => {
+    if (monthTotals.entryCount === 0) {
+      return "이번 달에는 기록이 없어서 목표와 비교할 수 없어요.";
+    }
+
+    const statuses = [
+      getGoalStatus(monthTotals.avgWaterMl, goals.waterMl, "min"),
+      getGoalStatus(monthTotals.avgCaffeineMg, goals.caffeineMg, "max"),
+      getGoalStatus(monthTotals.avgSugarG, goals.sugarG, "max"),
+    ];
+
+    return `${getGoalSummaryText(statuses)}`;
+  }, [goals, monthTotals]);
 
   const selectedEntriesWithIcons = useMemo(
     () =>
@@ -649,6 +726,15 @@ function Calendar() {
               </AppText>
               <AppText style={styles.metricLabel}>일평균{"\n"}당류🍭</AppText>
             </View>
+          </View>
+
+          <View style={styles.monthSummaryComparison}>
+            <AppText style={styles.monthSummaryComparisonLabel}>
+              목표와 비교하면...
+            </AppText>
+            <AppText style={styles.monthSummaryComparisonText}>
+              {monthGoalComparison}
+            </AppText>
           </View>
         </View>
 
@@ -924,6 +1010,24 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
+  monthSummaryComparison: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: "#FFF8F1",
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+  },
+  monthSummaryComparisonLabel: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginBottom: 4,
+  },
+  monthSummaryComparisonText: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+    lineHeight: 22,
+  },
   metricCard: {
     flex: 1,
     minHeight: 76,
@@ -947,6 +1051,7 @@ const styles = StyleSheet.create({
   metricValue: {
     ...TYPOGRAPHY.preset.h2,
     color: COLORS.semantic.textPrimary,
+    textAlign: 'center'
   },
   metricLabel: {
     ...TYPOGRAPHY.preset.body,

@@ -2,10 +2,24 @@ import { Image, ImageBackground, StyleSheet } from "react-native";
 import React, { useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useAuthGate } from "@/src/features/auth/AuthGate";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const SplashScreen = () => {
   const router = useRouter();
   const route = useAuthGate();
+
+  useEffect(() => {
+    const init = async () => {
+      const hasOnboarded = await AsyncStorage.getItem('hasOnboarded');
+
+      if(hasOnboarded === 'true') {
+        router.replace('/(tabs)');
+      } else {
+        router.replace('/onboarding');
+      }
+    };
+    init();
+  }, []);
 
   useEffect(() => {
     if (route === "LOADING") return;

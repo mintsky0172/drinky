@@ -14,9 +14,9 @@ import {
   StyleSheet,
   Pressable,
   View,
+  Linking,
 } from "react-native";
 import Toast from "react-native-toast-message";
-import * as AppleAuthentication from "expo-apple-authentication";
 import { signInWithApple } from "@/src/features/auth/useAppleSignIn";
 import { COLORS } from "@/src/constants/colors";
 
@@ -113,7 +113,7 @@ function Login() {
           onChangeText={setPw}
           style={styles.loginInput}
         />
-        <AppButton label="로그인" onPress={onLogin} />
+        <AppButton label="음료 기록하러 가기!" onPress={onLogin} />
 
         <View style={styles.orRow}>
           <View style={styles.orLine} />
@@ -126,18 +126,21 @@ function Login() {
         <View style={styles.socialRow}>
           {Platform.OS === "ios" ? (
             <View style={styles.socialButtonWrap}>
-              <AppleAuthentication.AppleAuthenticationButton
-                buttonType={
-                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
-                }
-                buttonStyle={
-                  AppleAuthentication.AppleAuthenticationButtonStyle
-                    .BLACK
-                }
-                cornerRadius={14}
-                style={styles.appleButton}
+              <Pressable
                 onPress={handleAppleLogin}
-              />
+                style={({ pressed }) => [
+                  styles.appleCircleButton,
+                  pressed && styles.appleCircleButtonPressed,
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Apple로 로그인"
+              >
+                <Image
+                  source={require("@/assets/icons/etc/appleid_button.png")}
+                  style={styles.appleArtwork}
+                  resizeMode="contain"
+                />
+              </Pressable>
             </View>
           ) : null}
           <View style={styles.socialButtonWrap}>
@@ -154,6 +157,17 @@ function Login() {
             비밀번호 찾기
           </AppText>
         </View>
+
+        <View style={styles.divider} />
+
+        <View>
+          <AppText style={{ textAlign: 'center', color: COLORS.semantic.textSecondary}}>
+            로그인 시 <AppText style={styles.linkText} onPress={() => Linking.openURL('https://www.notion.so/Drinky-33837b515a168017924eebac9c7e5a2a?source=copy_link')}>이용약관</AppText>과{'\n'}<AppText style={styles.linkText} onPress={() => Linking.openURL('https://www.notion.so/Drinky-33837b515a1680b2a447df52e7b6179e?source=copy_link')}>개인정보처리방침</AppText>에 동의한 것으로 간주합니다.
+          </AppText>
+          <View style={{height: 22}} />
+          <AppText style={{textAlign: 'center'}}>© Somin Lee, 2026</AppText>
+        </View>
+
       </View>
     </ImageBackground>
   );
@@ -180,10 +194,11 @@ const styles = StyleSheet.create({
   },
   socialRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 36,
     marginTop: 4,
     width: "100%",
-    alignItems: "stretch",
+    alignItems: "center",
+    justifyContent: "center",
   },
   orRow: {
     flexDirection: "row",
@@ -201,20 +216,17 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
   },
   socialButtonWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  socialButton: {
-    height: 52,
-    width: "100%",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: COLORS.ui.border,
-    backgroundColor: COLORS.base.creamPaper,
+    width: 52,
     alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    paddingHorizontal: 14,
+  },
+  googleButton: {
+    width: 52,
+    height: 52,
+  },
+  googleArtwork: {
+    width: 52,
+    height: 52,
+    flexShrink: 0,
   },
   socialButtonPressed: {
     opacity: 0.88,
@@ -233,27 +245,31 @@ const styles = StyleSheet.create({
   linkDivider: {
     color: COLORS.semantic.textSecondary,
   },
-  appleButton: {
+  appleCircleButton: {
+    width: 52,
     height: 52,
-    width: "100%",
+    borderRadius: 26,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  socialIcon: {
-    width: 13,
-    height: 15,
-    marginRight: 8,
+  appleCircleButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.99 }],
   },
-  socialLabel: {
-    color: COLORS.primary.espresso,
-    fontFamily: "System",
-    fontSize: 17,
-    lineHeight: 20,
-    fontWeight: "400",
+  appleArtwork: {
+    width: 40,
+    height: 40,
   },
   loginInput: {
     paddingTop: 0,
     paddingBottom: 0,
     lineHeight: 14,
   },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.ui.border,
+  }
 });
 
 function GoogleAuthButton({ onPress }: { onPress: () => void }) {
@@ -261,20 +277,17 @@ function GoogleAuthButton({ onPress }: { onPress: () => void }) {
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.socialButton,
+        styles.googleButton,
         pressed && styles.socialButtonPressed,
       ]}
       accessibilityRole="button"
       accessibilityLabel="Google로 로그인"
     >
       <Image
-        source={require("@/assets/icons/etc/google.png")}
-        style={styles.socialIcon}
+        source={require("@/assets/icons/etc/google_button.png")}
+        style={styles.googleArtwork}
         resizeMode="contain"
       />
-      <AppText preset="buttonSmall" style={styles.socialLabel}>
-        Google로 로그인
-      </AppText>
     </Pressable>
   );
 }
