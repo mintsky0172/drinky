@@ -11,7 +11,17 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.somin.drinky",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": [
+              "com.googleusercontent.apps.562395301209-qaqjoo7tjfpck94j7tdrlcgtuiojgjl7"
+            ]
+          }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -48,6 +58,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0a641a8c-df88-4768-b1b9-83d84b9943c2"
+      }
     }
   }
 }

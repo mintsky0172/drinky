@@ -507,6 +507,8 @@ function Calendar() {
     [selectedEntries, recipesById, recipesByName],
   );
 
+  const selectedSummary = summariesByDateKey[selectedDateKey]?.oneLine ?? "";
+
   const calendarMetaByDateKey = useMemo<Record<string, CalendarDayMeta>>(() => {
     const result: Record<string, CalendarDayMeta> = {};
 
@@ -749,6 +751,16 @@ function Calendar() {
               기록 수: {selectedEntries.length}개
             </AppText>
           </View>
+
+          {selectedSummary ? (
+            <View style={styles.oneLineBox}>
+              <View style={styles.oneLineQuoteRow}>
+                <AppText style={styles.oneLineQuoteMark}>“</AppText>
+                <AppText style={styles.oneLineText}>{selectedSummary}</AppText>
+                <AppText style={styles.oneLineQuoteMark}>”</AppText>
+              </View>
+            </View>
+          ) : null}
 
           <View style={styles.footerMetricsRow}>
             <View style={styles.footerMetricPill}>
@@ -1168,15 +1180,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
     borderRadius: 14,
-    backgroundColor: COLORS.base.warmBeige,
+    backgroundColor: "#FFF8F1",
     alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.ui.border,
+  },
+  oneLineQuoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  oneLineQuoteMark: {
+    ...TYPOGRAPHY.preset.h2,
+    color: COLORS.semantic.textSecondary,
+    lineHeight: 22,
   },
   oneLineText: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
     textAlign: "center",
+    flexShrink: 1,
   },
   footerMetricsRow: {
     flexDirection: "row",

@@ -249,6 +249,8 @@ const HomeScreen = () => {
 
   const [todayOneLine, setTodayOneLine] = useState("");
   const [goalsAchieved, setGoalsAchieved] = useState(false);
+  const [hasSeenGoalConfettiToday, setHasSeenGoalConfettiToday] =
+    useState(false);
   const [topIconKey, setTopIconKey] = useState<IngredientIconKey | null>(null);
   const [overrideIconKey, setOverrideIconKey] =
     useState<IngredientIconKey | null>(null);
@@ -257,7 +259,6 @@ const HomeScreen = () => {
     [overrideIconKey, topIconKey],
   );
   const [showConfetti, setShowConfetti] = useState(false);
-  const confettiFiredDateRef = useRef<string | null>(null);
 
   const summaryText = useMemo(
     () =>
@@ -306,6 +307,7 @@ const HomeScreen = () => {
       setTodayOneLine("");
       setOverrideIconKey(null);
       setGoalsAchieved(false);
+      setHasSeenGoalConfettiToday(false);
       return;
     }
 
@@ -320,7 +322,11 @@ const HomeScreen = () => {
     const unsubUser = onSnapshot(
       userRef,
       (snap) => {
-        const userGoals = snap.data()?.goals as
+        const userData = snap.data() as
+          | { goals?: { waterMl?: number; caffeineMg?: number; sugarG?: number } }
+          | undefined;
+
+        const userGoals = userData?.goals as
           | { waterMl?: number; caffeineMg?: number; sugarG?: number }
           | undefined;
 
@@ -344,6 +350,7 @@ const HomeScreen = () => {
           const data = snap.data() as any;
           setTodayOneLine(data.oneLine ?? "");
           setGoalsAchieved(Boolean(data.goalsAchieved));
+          setHasSeenGoalConfettiToday(Boolean(data.confettiShown));
           const overrideRaw = data.overrideIconKey;
           setOverrideIconKey(
             overrideRaw == null
@@ -354,6 +361,7 @@ const HomeScreen = () => {
           setOverrideIconKey(null);
           setTodayOneLine("");
           setGoalsAchieved(false);
+          setHasSeenGoalConfettiToday(false);
 
           // 문서 없으면 생성(메모 저장용으로만)
           await setDoc(
@@ -372,6 +380,7 @@ const HomeScreen = () => {
         setOverrideIconKey(null);
         setTodayOneLine("");
         setGoalsAchieved(false);
+        setHasSeenGoalConfettiToday(false);
       },
     );
 
@@ -475,42 +484,43 @@ const HomeScreen = () => {
   }, [todayKey, user, initializing]);
 
   useEffect(() => {
-    if (!isBalanced || !goalsAchieved) {
-      setShowConfetti(false);
-      return;
-    }
-
-    if (confettiFiredDateRef.current === todayKey) {
-      return;
-    }
-
-    confettiFiredDateRef.current = todayKey;
-    setShowConfetti(true);
-    const timer = setTimeout(() => setShowConfetti(false), 2400);
-    return () => clearTimeout(timer);
-  }, [isBalanced, goalsAchieved, todayKey]);
-
-  useEffect(() => {
     setGoalsAchieved(isBalanced);
   }, [isBalanced]);
 
   /** 공통 저장 함수 */
-  const saveSummary = async (
-    patch: Partial<{ oneLine: string }> & Record<string, any>,
-  ) => {
-    const ref = getSummaryRef();
-    if (!ref) {
-      throw new Error("로그인이 필요해요");
+  const saveSummary = useCallback(
+    async (patch: Partial<{ oneLine: string }> & Record<string, any>) => {
+      const ref = getSummaryRef();
+      if (!ref) {
+        throw new Error("로그인이 필요해요");
+      }
+
+      const payload: any = {
+        dateKey: todayKey,
+        ...patch,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(ref, payload, { merge: true });
+    },
+    [getSummaryRef, todayKey],
+  );
+
+  useEffect(() => {
+    if (!isBalanced || !goalsAchieved || hasSeenGoalConfettiToday) {
+      setShowConfetti(false);
+      return;
     }
 
-    const payload: any = {
-      dateKey: todayKey,
-      ...patch,
-      updatedAt: serverTimestamp(),
-    };
+    setShowConfetti(true);
+    setHasSeenGoalConfettiToday(true);
+    void saveSummary({
+      confettiShown: true,
+    });
 
-    await setDoc(ref, payload, { merge: true });
-  };
+    const timer = setTimeout(() => setShowConfetti(false), 2400);
+    return () => clearTimeout(timer);
+  }, [hasSeenGoalConfettiToday, isBalanced, goalsAchieved, saveSummary]);
 
   /** 2) 아이콘 선택: 즉시 저장 */
   const handleSelectIcon = async (key: IngredientIconKey) => {
