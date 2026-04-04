@@ -88,9 +88,6 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textPrimary,
     fontFamily: "Iseoyun",
     fontSize: 14,
-    paddingVertical: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
     includeFontPadding: false,
     lineHeight: 18,
     textAlignVertical: "center",
@@ -98,7 +95,7 @@ const styles = StyleSheet.create({
   multilineInput: {
     height: "auto",
     minHeight: 48,
-    paddingVertical: 12,
+    paddingVertical: 10,
     textAlignVertical: "top",
   },
   inputWithIcon: {
@@ -108,9 +105,6 @@ const styles = StyleSheet.create({
     borderRadius: 0,
     backgroundColor: "transparent",
     paddingHorizontal: 10,
-    paddingVertical: 0,
-    paddingTop: 0,
-    paddingBottom: 0,
     includeFontPadding: false,
     lineHeight: 15,
     textAlignVertical: "center",
@@ -118,7 +112,8 @@ const styles = StyleSheet.create({
   inputWithIconMultiline: {
     height: "auto",
     minHeight: 48,
-    paddingVertical: 12,
+    paddingTop: 8,
+    paddingBottom: 8,
     textAlignVertical: "top",
   },
 });

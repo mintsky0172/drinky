@@ -30,7 +30,14 @@ import {
   where,
 } from "firebase/firestore";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, View, Pressable, ScrollView, StyleSheet } from "react-native";
+import {
+  Alert,
+  View,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
@@ -224,6 +231,9 @@ function getGoalSummaryText(statuses: ("달성" | "거의" | "부족")[]) {
 function Calendar() {
   const { user, initializing } = useAuth();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const calendarIconSize = isTablet ? 64 : 30;
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -659,30 +669,50 @@ function Calendar() {
                     isSelected && styles.selectedCell,
                   ]}
                 >
-                  <AppText
-                    style={[
-                      styles.dayText,
-                      !cell.inCurrentMonth && styles.outsideMonthText,
-                      cell.isToday && styles.todayText,
-                      isSelected && styles.selectedText,
-                      iconKey && styles.dayTextHidden,
-                    ]}
-                  >
-                    {cell.date.getDate()}
-                  </AppText>
+                  <View style={styles.dayNumberSlot}>
+                    <AppText
+                      style={[
+                        styles.dayText,
+                        !cell.inCurrentMonth && styles.outsideMonthText,
+                        cell.isToday && styles.todayText,
+                        isSelected && styles.selectedText,
+                        iconKey && styles.dayTextHidden,
+                      ]}
+                    >
+                      {cell.date.getDate()}
+                    </AppText>
+                  </View>
 
                   <View style={styles.iconSlot}>
-                    {iconKey ? (
-                      <IngredientIcon iconKey={iconKey} size={30} />
-                    ) : null}
+                    <View
+                      style={[
+                        styles.iconAnchor,
+                        {
+                          width: calendarIconSize,
+                          height: calendarIconSize,
+                        },
+                      ]}
+                    >
+                      {iconKey ? (
+                        <IngredientIcon
+                          iconKey={iconKey}
+                          size={calendarIconSize}
+                        />
+                      ) : null}
 
-                    {dayEntries.length > 1 ? (
-                      <View style={styles.countBadge}>
-                        <AppText style={styles.countBadgeText}>
-                          {dayEntries.length}
-                        </AppText>
-                      </View>
-                    ) : null}
+                      {dayEntries.length > 1 ? (
+                        <View
+                          style={[
+                            styles.countBadge,
+                            isTablet && styles.countBadgeTablet,
+                          ]}
+                        >
+                          <AppText style={styles.countBadgeText}>
+                            {dayEntries.length}
+                          </AppText>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                 </View>
               </Pressable>
@@ -925,6 +955,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  dayNumberSlot: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ translateY: -1 }],
+  },
   todayCell: {
     backgroundColor: COLORS.base.warmBeige,
   },
@@ -937,11 +977,13 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.h3,
     lineHeight: 20,
     color: COLORS.semantic.textPrimary,
+    textAlign: "center",
   },
   dayTextHidden: {
     ...TYPOGRAPHY.preset.h3,
     lineHeight: 20,
     color: "transparent",
+    textAlign: "center",
   },
   outsideMonthText: {
     color: COLORS.semantic.textSecondary,
@@ -955,19 +997,23 @@ const styles = StyleSheet.create({
   },
   iconSlot: {
     position: "absolute",
-    bottom: 6,
-    width: 24,
-    height: 24,
-    left: "50%",
-    top: 10,
-    marginLeft: -12,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconAnchor: {
+    width: 30,
+    height: 30,
     alignItems: "center",
     justifyContent: "center",
   },
   countBadge: {
     position: "absolute",
-    right: -4,
-    top: -2,
+    right: -6,
+    top: -4,
     minWidth: 14,
     height: 14,
     paddingHorizontal: 3,
@@ -975,6 +1021,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.semantic.primary,
     alignItems: "center",
     justifyContent: "center",
+  },
+  countBadgeTablet: {
+    right: -4,
+    top: -2,
   },
   countBadgeText: {
     ...TYPOGRAPHY.preset.caption,

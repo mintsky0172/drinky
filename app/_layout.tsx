@@ -60,7 +60,7 @@ export default function RootLayout() {
       <ImageBackground
         source={appBackground}
         style={styles.background}
-        resizeMode="cover"
+        resizeMode="stretch"
       >
         <Stack
           screenOptions={{

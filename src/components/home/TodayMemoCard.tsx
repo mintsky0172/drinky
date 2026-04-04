@@ -93,7 +93,8 @@ const styles = StyleSheet.create({
   input: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
-    paddingVertical: 15,
+    paddingTop: 4,
+    paddingBottom: 12,
     minHeight: 80,
   },
 });

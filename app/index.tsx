@@ -9,28 +9,39 @@ const SplashScreen = () => {
   const route = useAuthGate();
 
   useEffect(() => {
-    const init = async () => {
-      const hasOnboarded = await AsyncStorage.getItem('hasOnboarded');
-
-      if(hasOnboarded === 'true') {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/onboarding');
-      }
-    };
-    init();
-  }, []);
-
-  useEffect(() => {
     if (route === "LOADING") return;
 
+    let cancelled = false;
+
+    const init = async () => {
+      if (route === "AUTH") {
+        router.replace("/(auth)/login");
+        return;
+      }
+
+      if (route === "NICKNAME") {
+        router.replace("/(auth)/nickname");
+        return;
+      }
+
+      const hasOnboarded = await AsyncStorage.getItem("hasOnboarded");
+      if (cancelled) return;
+
+      if (hasOnboarded === "true") {
+        router.replace("/(tabs)");
+      } else {
+        router.replace("/onboarding");
+      }
+    };
+
     const t = setTimeout(() => {
-      if (route === "AUTH") router.replace("/(auth)/login");
-      else if (route === "NICKNAME") router.replace("/(auth)/nickname");
-      else router.replace("/(tabs)");
+      void init();
     }, 900);
 
-    return () => clearTimeout(t);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [route, router]);
 
   return (
