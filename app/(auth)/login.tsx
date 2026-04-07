@@ -61,11 +61,23 @@ function Login() {
   const handleAppleLogin = async () => {
     try {
       await signInWithApple();
+      Toast.show({
+        type: "success",
+        text1: "로그인 완료",
+        text2: "Drinky에 오신 걸 환영해요☕️",
+        position: "bottom",
+      });
+      router.replace("/");
     } catch (error: any) {
       if (error?.code === "ERR_REQUEST_CANCELLED") {
         return;
       }
-      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "로그인 실패",
+        text2: error?.message ?? "다시 시도해 주세요.",
+        position: "bottom",
+      });
     }
   };
 
