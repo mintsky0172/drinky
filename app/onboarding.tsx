@@ -117,6 +117,7 @@ const OnboardingScreen = () => {
         horizontal
         pagingEnabled
         showsVerticalScrollIndicator={false}
+        showsHorizontalScrollIndicator={false}
         bounces={false}
         getItemLayout={(_, index) => ({
           length: width,

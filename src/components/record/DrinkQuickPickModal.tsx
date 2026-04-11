@@ -1,4 +1,11 @@
-import { FlatList, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import React from "react";
 import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
@@ -27,27 +34,38 @@ const DrinkQuickPickModal = ({
       <Pressable style={styles.overlay} onPress={onClose} />
 
       <View style={styles.panel}>
-        <Text style={styles.sectionTitle}>자주 마신 음료</Text>
-        <FlatList
-          data={frequent}
-          keyExtractor={(i) => i.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 10 }}
-          renderItem={({ item }) => (
-            <Pressable style={styles.chip} onPress={() => onPick(item)}>
-              <Text style={styles.chipText}>{item.name}</Text>
-            </Pressable>
-          )}
-        />
-
-        <View style={{ height: 16 }} />
-
-        <Text style={styles.sectionTitle}>최근 검색</Text>
         <FlatList
           data={recent}
           keyExtractor={(i) => i.id}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <View>
+              <Text style={styles.sectionTitle}>자주 마신 음료</Text>
+              <FlatList
+                data={frequent}
+                keyExtractor={(i) => i.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipListContent}
+                renderItem={({ item }) => (
+                  <Pressable style={styles.chip} onPress={() => onPick(item)}>
+                    <Text style={styles.chipText}>{item.name}</Text>
+                  </Pressable>
+                )}
+              />
+
+              <View style={styles.sectionGap} />
+
+              <Text style={styles.sectionTitle}>최근 검색</Text>
+            </View>
+          }
           ItemSeparatorComponent={() => <View style={styles.sep} />}
+          ListEmptyComponent={
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyText}>아직 불러올 음료가 없어요.</Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <Pressable style={styles.row} onPress={() => onPick(item)}>
               <DrinkIcon
@@ -86,16 +104,31 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     top: 130,
+    bottom: 40,
     borderRadius: 18,
     padding: 15,
     backgroundColor: COLORS.base.creamPaper,
     borderWidth: 1,
     borderColor: COLORS.ui.border,
   },
+  list: {
+    flex: 1,
+    minHeight: 0,
+  },
+  listContent: {
+    paddingBottom: 12,
+  },
   sectionTitle: {
     ...TYPOGRAPHY.preset.h3,
     color: COLORS.semantic.textPrimary,
     marginBottom: 10,
+  },
+  sectionGap: {
+    height: 16,
+  },
+  chipListContent: {
+    gap: 10,
+    paddingRight: 8,
   },
   chip: {
     paddingHorizontal: 12,
@@ -122,4 +155,11 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   sep: { height: 1, backgroundColor: COLORS.ui.border },
+  emptyWrap: {
+    paddingVertical: 16,
+  },
+  emptyText: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textSecondary,
+  },
 });

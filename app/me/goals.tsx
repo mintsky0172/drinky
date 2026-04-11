@@ -7,23 +7,21 @@ import {
   TextInput,
 } from "react-native";
 import React, { useCallback, useMemo, useState } from "react";
-import { updateUserGoals, UserGoals } from "@/src/lib/user";
+import { DEFAULT_GOALS, updateUserGoals, UserGoals } from "@/src/lib/user";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/src/lib/firebase";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  getGuestGoals,
+  saveGuestGoals,
+} from "@/src/features/entries/repositories/guestGoalsRepository";
 
 import AppButton from "@/src/components/ui/AppButton";
 import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
-
-const DEFAULT_GOALS: UserGoals = {
-  waterMl: 2000,
-  caffeineMg: 300,
-  sugarG: 50,
-};
 
 const clamp = (n: number, min: number, max: number) =>
   Math.min(max, Math.max(min, n));
@@ -47,8 +45,15 @@ const GoalSettingsScreen = () => {
 
   React.useEffect(() => {
     const run = async () => {
-      if (!user) return;
       try {
+        if (!user) {
+          const guestGoals = await getGuestGoals();
+          setWaterText(String(guestGoals.waterMl));
+          setCaffeineText(String(guestGoals.caffeineMg));
+          setSugarText(String(guestGoals.sugarG));
+          return;
+        }
+
         const userRef = doc(db, "users", user.uid);
         const snap = await getDoc(userRef);
         const g = (snap.data()?.goals ?? {}) as Partial<UserGoals>;
@@ -79,15 +84,9 @@ const GoalSettingsScreen = () => {
     setWaterText(String(DEFAULT_GOALS.waterMl));
     setCaffeineText(String(DEFAULT_GOALS.caffeineMg));
     setSugarText(String(DEFAULT_GOALS.sugarG));
-    Toast.show({ type: "error", text1: "로그인이 필요해요" });
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!user) {
-      Toast.show({ type: "error", text1: "로그인이 필요해요" });
-      return;
-    }
-
     if (parsed.waterMl === 0) {
       Toast.show({
         type: "info",
@@ -97,7 +96,11 @@ const GoalSettingsScreen = () => {
 
     setLoading(true);
     try {
-      await updateUserGoals(user.uid, parsed);
+      if (user) {
+        await updateUserGoals(user.uid, parsed);
+      } else {
+        await saveGuestGoals(parsed);
+      }
       Toast.show({ type: "success", text1: "목표를 저장했어요!" });
       router.back();
     } catch {
@@ -118,6 +121,15 @@ const GoalSettingsScreen = () => {
         <Text style={styles.sub}>
           하루 목표를 정해두면{"\n"}홈 카드와 요약이 더 정확해져요.
         </Text>
+
+        {!user ? (
+          <View style={styles.guestNoticeBox}>
+            <Text style={styles.guestNoticeText}>
+              비회원 목표는 이 기기에만 저장돼요. 로그인하지 않은 상태에서 앱을
+              삭제하면 함께 사라질 수 있어요.
+            </Text>
+          </View>
+        ) : null}
 
         {/* 수분 */}
         <View style={styles.card}>
@@ -268,6 +280,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.ui.border,
     marginTop: 12,
+  },
+  guestNoticeBox: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.white,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  guestNoticeText: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    lineHeight: 20,
   },
   cardTitle: { ...TYPOGRAPHY.preset.h3, color: COLORS.semantic.textPrimary },
   cardHint: {

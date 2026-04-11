@@ -23,7 +23,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
   collection,
-  deleteDoc,
   doc,
   onSnapshot,
   query,
@@ -41,6 +40,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
+import { deleteEntry, listEntries } from "@/src/features/entries/entriesApi";
+import { listGuestDailySummariesByDateRange } from "@/src/features/entries/repositories/guestDailySummariesRepository";
+import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRepository";
 
 type EntryRecord = {
   id: string;
@@ -308,8 +310,50 @@ function Calendar() {
   useEffect(() => {
     if (initializing) return;
     if (!user) {
-      setEntriesByDateKey({});
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const entries = await listEntries();
+        if (cancelled) return;
+
+        const nextMap: Record<string, EntryRecord[]> = {};
+        entries.forEach((raw: any) => {
+          const entry: EntryRecord = {
+            id: raw.id,
+            dateKey: raw.dateKey,
+            drinkName: raw.drinkName ?? "알 수 없는 음료",
+            category: raw.category,
+            totalMl: Number(raw.totalMl ?? 0),
+            totalCaffeineMg: Number(raw.totalCaffeineMg ?? 0),
+            totalSugarG: Number(raw.totalSugarG ?? 0),
+            isWaterOnly: Boolean(raw.isWaterOnly),
+            drinkId: raw.drinkId ?? null,
+            drinkIconKey: raw.drinkIconKey ?? null,
+            iconKey: raw.iconKey ?? null,
+            calendarIconKey: raw.calendarIconKey ?? null,
+            unit: raw.unit ?? "cup",
+            servings: Number(raw.servings ?? 0),
+          };
+
+          if (
+            entry.dateKey >= monthRange.startKey &&
+            entry.dateKey < monthRange.endKey
+          ) {
+            if (!nextMap[entry.dateKey]) {
+              nextMap[entry.dateKey] = [];
+            }
+            nextMap[entry.dateKey].push(entry);
+          }
+        });
+
+        setEntriesByDateKey(nextMap);
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     const entriesRef = collection(db, "users", user.uid, "entries");
@@ -361,8 +405,19 @@ function Calendar() {
   useEffect(() => {
     if (initializing) return;
     if (!user) {
-      setGoals(DEFAULT_GOALS);
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const guestGoals = await getGuestGoals();
+        if (cancelled) return;
+        setGoals(guestGoals);
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     const userRef = doc(db, "users", user.uid);
@@ -389,8 +444,32 @@ function Calendar() {
   useEffect(() => {
     if (initializing) return;
     if (!user) {
-      setSummariesByDateKey({});
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const summaries = await listGuestDailySummariesByDateRange(
+          monthRange.startKey,
+          monthRange.endKey,
+        );
+        if (cancelled) return;
+
+        const nextMap: Record<string, DaySummaryRecord> = {};
+        summaries.forEach((summary) => {
+          nextMap[summary.dateKey] = {
+            dateKey: summary.dateKey,
+            oneLine: summary.oneLine ?? "",
+            overrideIconKey: summary.overrideIconKey ?? null,
+          };
+        });
+
+        setSummariesByDateKey(nextMap);
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     const summariesRef = collection(db, "users", user.uid, "dailySummaries");
@@ -582,12 +661,17 @@ function Calendar() {
   };
 
   const handleDeleteEntry = async (entry: EntryRecord) => {
-    if (!user) return;
-
     try {
       setDeleting(true);
-
-      await deleteDoc(doc(db, "users", user.uid, "entries", entry.id));
+      await deleteEntry(entry.id);
+      setEntriesByDateKey((prev) => {
+        const current = prev[entry.dateKey] ?? [];
+        const nextEntries = current.filter((item) => item.id !== entry.id);
+        return {
+          ...prev,
+          [entry.dateKey]: nextEntries,
+        };
+      });
     } finally {
       setDeleting(false);
     }

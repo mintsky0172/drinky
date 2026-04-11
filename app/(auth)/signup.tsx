@@ -8,11 +8,12 @@ import {
 import React, { useState } from "react";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword } from "firebase/auth";
+import Toast from "react-native-toast-message";
 import AppText from "@/src/components/ui/AppText";
 import TextField from "@/src/components/ui/TextField";
 import AppButton from "@/src/components/ui/AppButton";
 import { auth } from "@/src/lib/firebase";
-import { ensureUserDoc } from "@/src/lib/user";
+import { finishAuthenticatedSession } from "@/src/features/auth/finishAuthenticatedSession";
 
 const Signup = () => {
   const router = useRouter();
@@ -23,10 +24,18 @@ const Signup = () => {
   const onSignup = async () => {
     try {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), pw);
-      await ensureUserDoc({
+      const { migratedGuestData } = await finishAuthenticatedSession({
         uid: cred.user.uid,
         email: cred.user.email ?? email.trim(),
-        nickname: nickname.trim() || undefined
+        nickname: nickname.trim() || undefined,
+      });
+      Toast.show({
+        type: "success",
+        text1: "회원가입 완료",
+        text2: migratedGuestData
+          ? "비회원 기록을 새 계정으로 옮겼어요."
+          : "이제 기록을 안전하게 저장할 수 있어요.",
+        position: "bottom",
       });
       router.replace("/");
     } catch (e: any) {

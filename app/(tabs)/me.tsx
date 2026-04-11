@@ -1,7 +1,11 @@
 import AppText from "@/src/components/ui/AppText";
 import { COLORS } from "@/src/constants/colors";
+import { setGuestMode } from "@/src/features/auth/session";
+import { listEntries } from "@/src/features/entries/entriesApi";
+import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRepository";
 import { getUserRole } from "@/src/lib/admin/adminApi";
 import { auth, db } from "@/src/lib/firebase";
+import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -26,18 +30,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-type Goals = {
-  waterMl: number;
-  caffeineMg: number;
-  sugarG: number;
-};
-
-const DEFAULT_GOALS: Goals = {
-  waterMl: 2000,
-  caffeineMg: 300,
-  sugarG: 50,
-};
-
 async function deleteAllEntries(uid: string) {
   // entries가 많아지면 paging 필요
   const snap = await getDocs(collection(db, "users", uid, "entries"));
@@ -49,18 +41,16 @@ async function deleteAllEntries(uid: string) {
 function Me() {
   const { user, initializing } = useAuth();
 
-  const [loadingRole, setLoadingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [nickname, setNickname] = useState("닉네임");
   const [email, setEmail] = useState("");
-  const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
+  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
   const [streakDays, setStreakDays] = useState(0);
 
   useEffect(() => {
     if (initializing) return;
     if (!user) {
-      setLoadingRole(false);
       setIsAdmin(false);
       return;
     }
@@ -68,7 +58,6 @@ function Me() {
     const run = async () => {
       const role = await getUserRole(user.uid);
       setIsAdmin(role === "admin");
-      setLoadingRole(false);
     };
 
     run();
@@ -77,11 +66,34 @@ function Me() {
   useEffect(() => {
     if (initializing) return;
     if (!user) {
-      setNickname("닉네임");
-      setEmail("");
-      setGoals(DEFAULT_GOALS);
-      setStreakDays(0);
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const [entries, guestGoals] = await Promise.all([
+          listEntries(),
+          getGuestGoals(),
+        ]);
+        if (cancelled) return;
+
+        const dateKeys = Array.from(
+          new Set(
+            entries
+              .map((entry: any) => entry?.dateKey as string | undefined)
+              .filter((dateKey): dateKey is string => Boolean(dateKey)),
+          ),
+        ).sort();
+
+        setNickname("게스트");
+        setEmail("");
+        setGoals(guestGoals);
+        setStreakDays(calculateCurrentStreak(dateKeys));
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     const userRef = doc(db, "users", user.uid);
@@ -92,7 +104,7 @@ function Me() {
         setNickname(data.nickname ?? "닉네임");
         setEmail(user.email ?? "");
 
-        const nextGoals: Goals = {
+        const nextGoals: UserGoals = {
           waterMl: data.goals?.waterMl ?? DEFAULT_GOALS.waterMl,
           caffeineMg: data.goals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
           sugarG: data.goals?.sugarG ?? DEFAULT_GOALS.sugarG,
@@ -135,7 +147,8 @@ function Me() {
 
   const onLogout = async () => {
     await signOut(auth);
-    router.replace("/login");
+    await setGuestMode();
+    router.replace("/");
   };
 
   const onDeleteAccount = async () => {
@@ -181,16 +194,21 @@ function Me() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.titleRow}>
-         <AppText preset="h1">마이페이지</AppText>
+          <AppText preset="h1">마이페이지</AppText>
 
-         {isAdmin ? (
-          <Pressable style={styles.admin} onPress={() => router.push('/admin')}>
-            <Image source={require('@/assets/icons/etc/tool.png')} style={styles.adminIcon} />
-            <AppText preset='body'>관리자 페이지</AppText>
-          </Pressable>
-         ) : null}
+          {isAdmin ? (
+            <Pressable
+              style={styles.admin}
+              onPress={() => router.push("/admin")}
+            >
+              <Image
+                source={require("@/assets/icons/etc/tool.png")}
+                style={styles.adminIcon}
+              />
+              <AppText preset="body">관리자 페이지</AppText>
+            </Pressable>
+          ) : null}
         </View>
-     
 
         {/* 프로필 카드 */}
         <View style={styles.sectionCard}>
@@ -222,6 +240,26 @@ function Me() {
             </View>
           </View>
         </View>
+
+        {!user ? (
+          <View style={styles.guestNoticeCard}>
+            <AppText preset="caption" style={styles.guestNoticeEyebrow}>
+              GUEST MODE
+            </AppText>
+            <AppText preset="body" style={styles.guestNoticeText}>
+              비회원 기록은 이 기기에만 저장돼요. 앱을 삭제하거나 기기를
+              바꾸면 기록, 목표, 오늘의 한 줄이 사라질 수 있어요.
+            </AppText>
+            <Pressable
+              style={styles.guestNoticeButton}
+              onPress={() => router.push("/login")}
+            >
+              <AppText preset="caption" style={styles.guestNoticeButtonText}>
+                로그인하고 안전하게 저장하기
+              </AppText>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* 하루 목표 설정 */}
         <View style={styles.sectionCard}>
@@ -431,16 +469,16 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   admin: {
-    flexDirection: 'row'
+    flexDirection: "row",
   },
   adminIcon: {
     width: 24,
-    height: 24
+    height: 24,
   },
   sectionCard: {
     borderRadius: 22,
@@ -448,6 +486,33 @@ const styles = StyleSheet.create({
     borderColor: COLORS.ui.border,
     backgroundColor: COLORS.semantic.surface,
     padding: 16,
+  },
+  guestNoticeCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.white,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 8,
+  },
+  guestNoticeEyebrow: {
+    color: COLORS.semantic.textSecondary,
+    letterSpacing: 0.6,
+  },
+  guestNoticeText: {
+    color: COLORS.semantic.textPrimary,
+    lineHeight: 22,
+  },
+  guestNoticeButton: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: COLORS.base.warmBeige,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  guestNoticeButtonText: {
+    color: COLORS.semantic.textPrimary,
   },
   sectionHeaderRow: {
     flexDirection: "row",

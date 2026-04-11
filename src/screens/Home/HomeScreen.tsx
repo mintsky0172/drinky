@@ -36,7 +36,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  deleteField,
   where,
   onSnapshot,
 } from "firebase/firestore";
@@ -46,6 +45,13 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth } from "@/src/providers/AuthProvider";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
 import AppText from "@/src/components/ui/AppText";
+import { listEntriesByDateKey } from "@/src/features/entries/entriesApi";
+import {
+  getGuestDailySummary,
+  saveGuestDailySummary,
+} from "@/src/features/entries/repositories/guestDailySummariesRepository";
+import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRepository";
+import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 
 type SummaryCard = {
   label: "수분💧" | "카페인☕️" | "당류🍭";
@@ -63,12 +69,6 @@ type SummaryTotals = {
   waterMl: number;
   caffeineMg: number;
   sugarG: number;
-};
-
-const DEFAULT_GOALS = {
-  waterMl: 2000,
-  caffeineMg: 300,
-  sugarG: 50,
 };
 
 const REVIEW_PROMPT_LAST_SHOWN_KEY = "reviewPrompt:lastShownDate";
@@ -186,6 +186,74 @@ function pickSummaryText(levels: {
   return balancedMessages[Math.floor(Math.random() * balancedMessages.length)];
 }
 
+function buildOverviewFromEntries(entries: any[]) {
+  const byDrink = new Map<
+    string,
+    {
+      name: string;
+      unit: "cup" | "ml";
+      servings: number;
+      totalMl: number;
+    }
+  >();
+
+  let nextTotals: SummaryTotals = {
+    waterMl: 0,
+    caffeineMg: 0,
+    sugarG: 0,
+  };
+  const iconScores = new Map<IngredientIconKey, number>();
+
+  entries.forEach((e) => {
+    const name = (e.drinkName as string) ?? "알 수 없는 음료";
+    const unit = (e.unit as "cup" | "ml") ?? "cup";
+    const servings = Number(e.servings ?? 0);
+    const totalMl = Number(e.totalMl ?? 0);
+
+    const key = `${name}::${unit}`;
+    const prev = byDrink.get(key);
+
+    byDrink.set(key, {
+      name,
+      unit,
+      servings: (prev?.servings ?? 0) + servings,
+      totalMl: (prev?.totalMl ?? 0) + totalMl,
+    });
+
+    nextTotals = {
+      waterMl: nextTotals.waterMl + (e.isWaterOnly ? totalMl : 0),
+      caffeineMg: nextTotals.caffeineMg + Number(e.totalCaffeineMg ?? 0),
+      sugarG: nextTotals.sugarG + Number(e.totalSugarG ?? 0),
+    };
+
+    const iconKey = inferIngredientIconFromEntry(e);
+    iconScores.set(iconKey, (iconScores.get(iconKey) ?? 0) + scoreForIcon(e));
+  });
+
+  let topIconKey: IngredientIconKey | null = null;
+  let topIconScore = -1;
+  iconScores.forEach((score, key) => {
+    if (score > topIconScore) {
+      topIconScore = score;
+      topIconKey = key;
+    }
+  });
+
+  return {
+    totals: {
+      waterMl: Math.max(0, Math.round(nextTotals.waterMl)),
+      caffeineMg: Math.max(0, Math.round(nextTotals.caffeineMg)),
+      sugarG: Math.max(0, Math.round(nextTotals.sugarG)),
+    },
+    todayDrinks: Array.from(byDrink.values()).map((d) => ({
+      name: d.name,
+      servingsText:
+        d.unit === "cup" ? `${Math.round(d.servings)}잔` : `${Math.round(d.totalMl)}mL`,
+    })),
+    topIconKey,
+  };
+}
+
 const HomeScreen = () => {
   const router = useRouter();
   const { user, initializing } = useAuth();
@@ -214,7 +282,7 @@ const HomeScreen = () => {
     sugarG: 0,
   });
 
-  const [goals, setGoals] = useState(DEFAULT_GOALS);
+  const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
 
   const [nutritionToolTipOpen, setNutritionToolTipOpen] = useState(false);
 
@@ -305,17 +373,38 @@ const HomeScreen = () => {
   useEffect(() => {
     if (initializing) return;
 
-    // 로그인 전 상태
     if (!user) {
-      setTodayDrinks([]);
-      setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0 });
-      setGoals(DEFAULT_GOALS);
-      setTopIconKey(null);
-      setTodayOneLine("");
-      setOverrideIconKey(null);
-      setGoalsAchieved(false);
-      setHasSeenGoalConfettiToday(false);
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const [entries, summary, guestGoals] = await Promise.all([
+          listEntriesByDateKey(todayKey),
+          getGuestDailySummary(todayKey),
+          getGuestGoals(),
+        ]);
+        if (cancelled) return;
+
+        const overview = buildOverviewFromEntries(entries);
+        setTodayDrinks(overview.todayDrinks);
+        setTotals(overview.totals);
+        setTopIconKey(overview.topIconKey);
+        setGoals(guestGoals);
+        setTodayOneLine(summary?.oneLine ?? "");
+        setOverrideIconKey(
+          summary?.overrideIconKey == null
+            ? null
+            : normalizeIngredientIconKey(summary.overrideIconKey),
+        );
+        setGoalsAchieved(Boolean(summary?.goalsAchieved));
+        setHasSeenGoalConfettiToday(Boolean(summary?.confettiShown));
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      };
     }
 
     const uid = user.uid;
@@ -397,81 +486,12 @@ const HomeScreen = () => {
       (snap) => {
         const dailyEntryDocs = snap.docs;
 
-        // 음료별 합치기
-        const byDrink = new Map<
-          string,
-          {
-            name: string;
-            unit: "cup" | "ml";
-            servings: number;
-            totalMl: number;
-          }
-        >();
-
-        let nextTotals: SummaryTotals = {
-          waterMl: 0,
-          caffeineMg: 0,
-          sugarG: 0,
-        };
-        const iconScores = new Map<IngredientIconKey, number>();
-
-        dailyEntryDocs.forEach((entryDoc) => {
-          const e = entryDoc.data() as any;
-
-          const name = (e.drinkName as string) ?? "알 수 없는 음료";
-          const unit = (e.unit as "cup" | "ml") ?? "cup";
-          const servings = Number(e.servings ?? 0);
-          const totalMl = Number(e.totalMl ?? 0);
-
-          const key = `${name}::${unit}`;
-          const prev = byDrink.get(key);
-
-          byDrink.set(key, {
-            name,
-            unit,
-            servings: (prev?.servings ?? 0) + servings,
-            totalMl: (prev?.totalMl ?? 0) + totalMl,
-          });
-
-          // waterMl은 isWaterOnly + totalMl로 계산
-          nextTotals = {
-            waterMl: nextTotals.waterMl + (e.isWaterOnly ? totalMl : 0),
-            caffeineMg: nextTotals.caffeineMg + Number(e.totalCaffeineMg ?? 0),
-            sugarG: nextTotals.sugarG + Number(e.totalSugarG ?? 0),
-          };
-
-          // entries 스키마는 iconKey를 사용하고, 과거 데이터 호환을 위해 calendarIconKey도 fallback 처리
-          const iconKey = inferIngredientIconFromEntry(e);
-          const prevIconScore = iconScores.get(iconKey) ?? 0;
-          iconScores.set(iconKey, prevIconScore + scoreForIcon(e));
-        });
-
-        setTotals({
-          waterMl: Math.max(0, Math.round(nextTotals.waterMl)),
-          caffeineMg: Math.max(0, Math.round(nextTotals.caffeineMg)),
-          sugarG: Math.max(0, Math.round(nextTotals.sugarG)),
-        });
-
-        setTodayDrinks(
-          Array.from(byDrink.values()).map((d) => ({
-            name: d.name,
-            servingsText:
-              d.unit === "cup"
-                ? `${Math.round(d.servings)}잔`
-                : `${Math.round(d.totalMl)}mL`,
-          })),
+        const overview = buildOverviewFromEntries(
+          dailyEntryDocs.map((entryDoc) => entryDoc.data()),
         );
-
-        // topIconKey 계산
-        let nextTopIconKey: IngredientIconKey | null = null;
-        let nextTopIconScore = -1;
-        iconScores.forEach((score, key) => {
-          if (score > nextTopIconScore) {
-            nextTopIconScore = score;
-            nextTopIconKey = key;
-          }
-        });
-        setTopIconKey(nextTopIconKey);
+        setTotals(overview.totals);
+        setTodayDrinks(overview.todayDrinks);
+        setTopIconKey(overview.topIconKey);
       },
       () => {
         // entries 구독 실패 시 초기화
@@ -497,10 +517,13 @@ const HomeScreen = () => {
   /** 공통 저장 함수 */
   const saveSummary = useCallback(
     async (patch: Partial<{ oneLine: string }> & Record<string, any>) => {
-      const ref = getSummaryRef();
-      if (!ref) {
-        throw new Error("로그인이 필요해요");
+      if (!user) {
+        await saveGuestDailySummary(todayKey, patch);
+        return;
       }
+
+      const ref = getSummaryRef();
+      if (!ref) throw new Error("로그인이 필요해요");
 
       const payload: any = {
         dateKey: todayKey,
@@ -510,7 +533,7 @@ const HomeScreen = () => {
 
       await setDoc(ref, payload, { merge: true });
     },
-    [getSummaryRef, todayKey],
+    [getSummaryRef, todayKey, user],
   );
 
   useEffect(() => {
@@ -598,7 +621,7 @@ const HomeScreen = () => {
     setOverrideIconKey(null);
 
     try {
-      await saveSummary({ overrideIconKey: deleteField() });
+      await saveSummary({ overrideIconKey: null });
       Toast.show({ type: "info", text1: "기본으로 되돌렸어요." });
     } catch (e: any) {
       Toast.show({

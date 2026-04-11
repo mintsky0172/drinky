@@ -14,16 +14,6 @@ const SplashScreen = () => {
     let cancelled = false;
 
     const init = async () => {
-      if (route === "AUTH") {
-        router.replace("/(auth)/login");
-        return;
-      }
-
-      if (route === "NICKNAME") {
-        router.replace("/(auth)/nickname");
-        return;
-      }
-
       const hasOnboarded = await AsyncStorage.getItem("hasOnboarded");
       if (cancelled) return;
 

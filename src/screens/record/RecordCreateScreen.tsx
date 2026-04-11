@@ -22,7 +22,12 @@ import { TYPOGRAPHY } from "@/src/constants/typography";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
-import { addEntry, getEntryById, updateEntry } from "@/src/lib/entries/entriesApi";
+import {
+  saveEntry,
+  getEntryById,
+  updateEntry,
+  listEntries,
+} from "@/src/features/entries/entriesApi";
 import { db } from "@/src/lib/firebase";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import {
@@ -438,12 +443,28 @@ const RecordCreateScreen = () => {
 
   useEffect(() => {
     if (!user) {
-      setEntryHistory([]);
-      return;
+      let cancelled = false;
+
+      const run = async () => {
+        const entries = await listEntries();
+        if (!cancelled) {
+          setEntryHistory(entries);
+        }
+      };
+
+      void run();
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     const entriesRef = collection(db, "users", user.uid, "entries");
-    const entriesQ = query(entriesRef, orderBy("consumedAt", "desc"), limit(200));
+    const entriesQ = query(
+      entriesRef,
+      orderBy("consumedAt", "desc"),
+      limit(200),
+    );
 
     const unsub = onSnapshot(entriesQ, (snap) => {
       setEntryHistory(snap.docs.map((d) => d.data()));
@@ -647,7 +668,7 @@ const RecordCreateScreen = () => {
           },
         ]);
       } else {
-        await addEntry(payload);
+        await saveEntry(payload);
         setSaveDone(true);
       }
     } catch (e: any) {
