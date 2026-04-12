@@ -333,6 +333,7 @@ const HomeScreen = () => {
   );
   const [showConfetti, setShowConfetti] = useState(false);
   const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
+  const [guestRefreshToken, setGuestRefreshToken] = useState(0);
 
   const summaryText = useMemo(
     () =>
@@ -355,8 +356,13 @@ const HomeScreen = () => {
     return doc(db, "users", user.uid, "dailySummaries", todayKey);
   }, [todayKey, user]);
 
-  // 날짜 갱신
-  useFocusEffect(useCallback(() => {}, []));
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) {
+        setGuestRefreshToken((prev) => prev + 1);
+      }
+    }, [user]),
+  );
 
   // 자정 넘어가면 다음날로 갱신
   useEffect(() => {
@@ -508,7 +514,7 @@ const HomeScreen = () => {
       unsubEntries();
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [todayKey, user, initializing]);
+  }, [todayKey, user, initializing, guestRefreshToken]);
 
   useEffect(() => {
     setGoalsAchieved(isBalanced);

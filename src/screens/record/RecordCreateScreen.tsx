@@ -222,6 +222,43 @@ function resolveCalendarIconKey(params: {
   return "default";
 }
 
+function buildFallbackItemFromEntry(entry: any): Item | null {
+  const drinkName = String(entry?.drinkName ?? "").trim();
+  if (!drinkName) return null;
+
+  const servings = Math.max(1, Number(entry?.servings ?? 1));
+  const totalMl = Math.max(0, Number(entry?.totalMl ?? 0));
+  const unit = entry?.unit === "ml" ? "ml" : "cup";
+  const mlPerServing =
+    unit === "cup"
+      ? Math.max(1, Number(entry?.mlPerUnit ?? (totalMl / servings || 200)))
+      : Math.max(1, totalMl);
+
+  return {
+    id: String(entry?.drinkId ?? `entry-${drinkName}`),
+    name: drinkName,
+    category: entry?.category as string | undefined,
+    drinkIconKey: resolveDrinkIconKey({
+      drinkIconKey: entry?.drinkIconKey as string | undefined,
+      name: drinkName,
+      category: entry?.category as string | undefined,
+      isWaterOnly: Boolean(entry?.isWaterOnly),
+    }),
+    calendarIconKey: resolveCalendarIconKey({
+      calendarIconKey: entry?.iconKey ?? entry?.calendarIconKey,
+      name: drinkName,
+      category: entry?.category as string | undefined,
+      isWaterOnly: Boolean(entry?.isWaterOnly),
+    }),
+    mlPerServing,
+    caffeineMgPerServing:
+      Number(entry?.totalCaffeineMg ?? 0) / servings,
+    sugarGPerServing:
+      Number(entry?.totalSugarG ?? 0) / servings,
+    isWaterOnly: Boolean(entry?.isWaterOnly),
+  };
+}
+
 function SelectModal({
   visible,
   title,
@@ -434,11 +471,9 @@ const RecordCreateScreen = () => {
         (item) =>
           item.name.trim().toLowerCase() ===
           String(editEntry.drinkName ?? "").trim().toLowerCase(),
-      ) ??
-      null;
-    if (matched) {
-      setPicked(matched);
-    }
+      );
+
+    setPicked(matched ?? buildFallbackItemFromEntry(editEntry));
   }, [editEntry, recipeItems]);
 
   useEffect(() => {
