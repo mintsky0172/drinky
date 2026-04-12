@@ -21,6 +21,7 @@ import SaveResultModal from "@/src/components/record/SaveResultModal";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import buildEntryPayload from "@/src/lib/entries/buildEntryPayload";
 import {
   saveEntry,
@@ -106,6 +107,9 @@ const SIZE_OPTIONS: Option[] = [
   { value: "L", label: "L" },
   { value: "XL", label: "XL" },
 ];
+
+const SIZE_GUIDE_TOOLTIP_TEXT =
+  "일반적인 카페 기준으로 S는 약 355mL, M은 약 473mL, L는 약 591mL 정도예요.";
 
 function mapRecipeIconKeyToAppKey(params: {
   drinkIconKey?: string;
@@ -345,6 +349,7 @@ const RecordCreateScreen = () => {
   const [servings, setServings] = useState<string>("1");
   const [unit, setUnit] = useState<string>("cup");
   const [unitModal, setUnitModal] = useState(false);
+  const [sizeGuideToolTipOpen, setSizeGuideToolTipOpen] = useState(false);
 
   const [sizeLabel, setSizeLabel] = useState<string>("M");
   const [sizeModal, setSizeModal] = useState(false);
@@ -515,11 +520,31 @@ const RecordCreateScreen = () => {
     setConsumedAt((prev) => mergeDatePart(nextDate, prev));
   }, [params.date]);
 
-  const helperText = useMemo(() => {
-    if (unit === "ml") return null;
-    const baseMl = 200; // TODO: 레시피/사이즈 연결되면 바꾸기
-    return `1잔 = ${baseMl}mL에요!`;
-  }, [unit]);
+  const amountHintText = useMemo(() => {
+    if (unit !== "cup") return null;
+    if (!picked) return null;
+    const defaultMl = Math.max(1, Math.round(Number(picked.mlPerServing ?? 0)));
+    if (!defaultMl) return null;
+    return `1잔 = ${defaultMl}mL에요!`;
+  }, [picked, unit]);
+
+  const handleSelectUnit = (nextUnit: string) => {
+    if (nextUnit === unit) return;
+
+    const defaultMl = Math.max(1, Math.round(Number(picked?.mlPerServing ?? 200)));
+    const rawAmount = Number(servings);
+
+    if (nextUnit === "ml") {
+      const cupAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 1;
+      setServings(String(Math.max(1, Math.round(cupAmount * defaultMl))));
+      setUnit("ml");
+      return;
+    }
+
+    const mlAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : defaultMl;
+    setServings(String(Math.max(1, Math.round(mlAmount / defaultMl))));
+    setUnit("cup");
+  };
 
   const onPick = (item: Item) => {
     setPicked(item);
@@ -782,9 +807,52 @@ const RecordCreateScreen = () => {
           />
 
           {/* 양 & 사이즈 */}
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-            양 & 사이즈
-          </Text>
+          <View style={[styles.sectionHeaderRow, { marginTop: 14 }]}>
+            <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+              양 & 사이즈
+            </Text>
+            <View style={styles.tooltipAnchor}>
+              <Pressable
+                hitSlop={8}
+                onPress={() =>
+                  setSizeGuideToolTipOpen((prev) => !prev)
+                }
+              >
+                <Ionicons
+                  name="help-circle-outline"
+                  size={18}
+                  color={COLORS.semantic.textSecondary}
+                />
+              </Pressable>
+
+              {sizeGuideToolTipOpen ? (
+                <View style={styles.tooltipBubble}>
+                  <View style={styles.tooltipArrow} />
+
+                  <View style={styles.tooltipBubbleHeader}>
+                    <AppText style={styles.tooltipBubbleTitle}>
+                      음료 사이즈 기준
+                    </AppText>
+
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => setSizeGuideToolTipOpen(false)}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={16}
+                        color={COLORS.semantic.textPrimary}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <AppText style={styles.tooltipBubbleText}>
+                    {SIZE_GUIDE_TOOLTIP_TEXT}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+          </View>
           <View style={styles.amountRow}>
             <View style={styles.amountBox}>
               <TextField
@@ -817,8 +885,8 @@ const RecordCreateScreen = () => {
               </Text>
               <Text style={styles.fieldIcon}>▾</Text>
             </Pressable>
-            {helperText ? (
-              <Text style={styles.helper}>{helperText}</Text>
+            {amountHintText ? (
+              <Text style={styles.amountHint}>{amountHintText}</Text>
             ) : null}
           </View>
           {/* 마신 시간 */}
@@ -882,7 +950,7 @@ const RecordCreateScreen = () => {
           options={UNIT_OPTIONS}
           value={unit}
           onClose={() => setUnitModal(false)}
-          onSelect={setUnit}
+          onSelect={handleSelectUnit}
         />
         <SelectModal
           visible={sizeModal}
@@ -1090,6 +1158,14 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textPrimary,
     marginBottom: 12,
   },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  sectionTitleInline: {
+    marginBottom: 0,
+  },
   card: {
     borderRadius: 18,
     padding: 16,
@@ -1133,6 +1209,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     alignItems: "center",
+    flexWrap: "wrap",
   },
   amountBox: {
     width: 70,
@@ -1173,11 +1250,54 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
   },
-  helper: {
-    marginTop: 8,
+  amountHint: {
     ...TYPOGRAPHY.preset.caption,
     color: COLORS.semantic.textSecondary,
-    textAlign: "center",
+  },
+  tooltipAnchor: {
+    position: "relative",
+  },
+  tooltipBubble: {
+    position: "absolute",
+    top: 26,
+    left: -50,
+    width: 260,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 4,
+    zIndex: 30,
+  },
+  tooltipArrow: {
+    position: "absolute",
+    top: -7,
+    left: 50,
+    width: 12,
+    height: 12,
+    backgroundColor: "#FFFFFF",
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: COLORS.ui.border,
+    transform: [{ rotate: "45deg" }],
+  },
+  tooltipBubbleHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  tooltipBubbleTitle: {
+    ...TYPOGRAPHY.preset.h3,
+  },
+  tooltipBubbleText: {
+    ...TYPOGRAPHY.preset.body,
+    lineHeight: 20,
   },
   memo: {
     minHeight: 92,
