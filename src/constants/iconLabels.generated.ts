@@ -619,6 +619,7 @@ export const DRINK_ICON_LABELS: Record<DrinkIconKey, string> = {
   "vanilla_coldbrew": "바닐라 콜드브루",
   "vin_chaud": "vin chaud",
   "water": "water",
+  "watermelon_juice": "수박 juice",
   "watermelon_oolong_ice_tea": "수박 oolong 아이스 티",
   "watermelon_shower_ice_tea": "수박 shower 아이스 티",
   "watermelon_shower_pearl_crush": "수박 shower 펄 crush",

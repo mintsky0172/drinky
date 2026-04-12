@@ -617,6 +617,7 @@ export const GENERATED_DRINK_ICONS = {
   "vanilla_coldbrew": require("@/assets/icons/drinks/coffee/vanilla_coldbrew.png"),
   "vin_chaud": require("@/assets/icons/drinks/other/vin_chaud.png"),
   "water": require("@/assets/icons/drinks/water/water.png"),
+  "watermelon_juice": require("@/assets/icons/drinks/juice/watermelon_juice.png"),
   "watermelon_oolong_ice_tea": require("@/assets/icons/drinks/tea/watermelon_oolong_ice_tea.png"),
   "watermelon_shower_ice_tea": require("@/assets/icons/drinks/tea/watermelon_shower_ice_tea.png"),
   "watermelon_shower_pearl_crush": require("@/assets/icons/drinks/smoothie/watermelon_shower_pearl_crush.png"),
