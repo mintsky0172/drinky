@@ -130,11 +130,6 @@ export default function NewReportScreen() {
      !submitting;
 
      const handleSubmit = async () => {
-        if(!user) {
-            Toast.show({type: 'error', text1: '로그인이 필요해요.'});
-            return;
-        }
-
         if(!canSubmit) {
             Toast.show({type: 'error', text1: '내용을 모두 입력해 주세요.'});
             return;
@@ -149,8 +144,9 @@ export default function NewReportScreen() {
                 drinkName: drinkName.trim(),
                 title,
                 message: message.trim(),
-                createdBy: user.uid,
-                createdByNickname: user.displayName ?? '',
+                createdBy: user?.uid ?? 'guest',
+                createdByNickname: user?.displayName?.trim() ?? '',
+                isAnonymous: !user,
              });
 
              Toast.show({
@@ -395,9 +391,13 @@ const styles = StyleSheet.create({
         borderColor: COLORS.ui.border,
         backgroundColor: COLORS.semantic.surface,
         paddingHorizontal: 12,
+        paddingTop: 0,
+        paddingBottom: 0,
         color: COLORS.semantic.textPrimary,
         fontFamily: "Iseoyun",
         fontSize: 14,
+        lineHeight: 15,
+        textAlignVertical: "center",
     },
     searchField: {
         minHeight: 46,

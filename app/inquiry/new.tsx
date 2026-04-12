@@ -31,11 +31,6 @@ export default function NewInquiryScreen() {
     subject.trim().length > 0 && message.trim().length > 0 && !submitting;
 
   const handleSubmit = async () => {
-    if (!user) {
-      Toast.show({ type: "error", text1: "로그인이 필요해요." });
-      return;
-    }
-
     if (!canSubmit) {
       Toast.show({ type: "error", text1: "제목과 내용을 입력해 주세요." });
       return;
@@ -47,9 +42,10 @@ export default function NewInquiryScreen() {
       await submitInquiry({
         subject: subject.trim(),
         message: message.trim(),
-        createdBy: user.uid,
-        createdByNickname: user.displayName ?? "",
-        email: email.trim()
+        createdBy: user?.uid ?? "guest",
+        createdByNickname: user?.displayName?.trim() ?? "",
+        email: email.trim(),
+        isAnonymous: !user,
       });
 
       Toast.show({
@@ -199,9 +195,13 @@ const styles = StyleSheet.create({
     borderColor: COLORS.ui.border,
     backgroundColor: COLORS.semantic.surface,
     paddingHorizontal: 12,
+    paddingTop: 0,
+    paddingBottom: 0,
     color: COLORS.semantic.textPrimary,
     fontFamily: "Iseoyun",
     fontSize: 14,
+    lineHeight: 14,
+    textAlignVertical: "center",
   },
 
   textArea: {

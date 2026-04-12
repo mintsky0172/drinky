@@ -14,6 +14,7 @@ export type ReportDoc = {
     message: string;
     createdBy: string;
     createdByNickname?: string;
+    isAnonymous?: boolean;
     createdAt: any;
     status: ReportStatus;
     adminMemo?: string;
@@ -24,6 +25,7 @@ export type InquiryDoc ={
     message: string;
     createdBy: string;
     createdByNickname?: string;
+    isAnonymous?: boolean;
     createdAt: any;
     status: InquiryStatus;
     adminMemo?: string; 

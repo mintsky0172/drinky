@@ -9,6 +9,7 @@ type SubmitInquiryInput = {
     createdBy: string;
     createdByNickname: string;
     email: string;
+    isAnonymous?: boolean;
 };
 
 export async function submitInquiry(input: SubmitInquiryInput) {
@@ -17,6 +18,7 @@ export async function submitInquiry(input: SubmitInquiryInput) {
         message: input.message,
         createdBy: input.createdBy,
         createdByNickname: input.createdByNickname ?? '',
+        isAnonymous: Boolean(input.isAnonymous),
         createdAt: serverTimestamp(),
         status: "open",
         adminMemo: '',

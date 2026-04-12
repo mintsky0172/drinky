@@ -57,11 +57,13 @@ export default function buildEntryPayload(
   );
   const mlPerUnit = unit === "cup" ? safeMlPerServing : 1;
   const totalMl = Math.round(amount * mlPerUnit);
+  const servingRatio =
+    unit === "cup" ? amount : totalMl / safeMlPerServing;
 
   const caffeinePerServing = toNonNegativeNumber(input.caffeineMgPerServing);
   const sugarPerServing = toNonNegativeNumber(input.sugarGPerServing);
-  const totalCaffeineMg = Math.round(caffeinePerServing * amount);
-  const totalSugarG = Math.round(sugarPerServing * amount);
+  const totalCaffeineMg = Math.round(caffeinePerServing * servingRatio);
+  const totalSugarG = Math.round(sugarPerServing * servingRatio);
 
   const rawMemo = input.memo?.trim() ?? "";
   const rawBrandLabel = input.brandLabel?.trim() ?? "";

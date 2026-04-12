@@ -10,6 +10,7 @@ type SubmitReportInput = {
     message: string;
     createdBy: string;
     createdByNickname?: string;
+    isAnonymous?: boolean;
 }
 
 export async function submitReport(input: SubmitReportInput) {
@@ -21,6 +22,7 @@ export async function submitReport(input: SubmitReportInput) {
         message: input.message,
         createdBy: input.createdBy,
         createdByNickname: input.createdByNickname ?? '',
+        isAnonymous: Boolean(input.isAnonymous),
         createdAt: serverTimestamp(),
         status: "open",
         adminMemo: '',

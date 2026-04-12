@@ -123,7 +123,7 @@ const AdminInquiryDetailScreen = () => {
             </AppText>
 
             <AppText preset="h3" style={styles.metaText}>
-              • 작성자: {item.createdByNickname || "익명"}
+              • 작성자: {item.isAnonymous ? "익명" : item.createdByNickname || "사용자"}
             </AppText>
 
             <AppText preset="body" style={styles.messageText}>

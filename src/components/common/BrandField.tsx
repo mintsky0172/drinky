@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import React from "react";
 import AppText from "../ui/AppText";
 import TextField from "../ui/TextField";
@@ -49,16 +49,16 @@ const BrandField = ({
               onPress={() => onChangeText(brand)}
             >
               <AppText
-                preset='body'
+                preset="body"
                 style={[
                   styles.brandChipText,
-                  selected && styles.brandChipActive,
+                  selected && styles.brandChipTextActive,
                 ]}
               >
                 {brand}
               </AppText>
             </Pressable>
-          )
+          );
         })}
       </View>
     </View>
@@ -69,8 +69,8 @@ export default BrandField;
 
 const styles = StyleSheet.create({
   brandChipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
     marginVertical: 10,
   },
@@ -90,5 +90,5 @@ const styles = StyleSheet.create({
   },
   brandChipTextActive: {
     color: COLORS.base.creamPaper,
-  }
+  },
 });

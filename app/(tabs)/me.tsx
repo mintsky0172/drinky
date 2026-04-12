@@ -348,31 +348,47 @@ function Me() {
             계정
           </AppText>
 
-          <Pressable style={styles.menuRow} onPress={onLogout}>
-            <View style={styles.menuLeft}>
-              <Image
-                source={require("@/assets/icons/etc/logout.png")}
-                style={styles.menuIcon}
-              />
-              <AppText preset="h3" style={styles.menuText}>
-                로그아웃
-              </AppText>
-            </View>
-          </Pressable>
+          {!user ? (
+            <Pressable style={styles.menuRow} onPress={() => router.push("/login")}>
+              <View style={styles.menuLeft}>
+                <Image
+                  source={require("@/assets/icons/etc/logout.png")}
+                  style={styles.menuIcon}
+                />
+                <AppText preset="h3" style={styles.menuText}>
+                  로그인
+                </AppText>
+              </View>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable style={styles.menuRow} onPress={onLogout}>
+                <View style={styles.menuLeft}>
+                  <Image
+                    source={require("@/assets/icons/etc/logout.png")}
+                    style={styles.menuIcon}
+                  />
+                  <AppText preset="h3" style={styles.menuText}>
+                    로그아웃
+                  </AppText>
+                </View>
+              </Pressable>
 
-          <View style={styles.menuDivider} />
+              <View style={styles.menuDivider} />
 
-          <Pressable style={styles.menuRow} onPress={onDeleteAccount}>
-            <View style={styles.menuLeft}>
-              <Image
-                source={require("@/assets/icons/etc/exit.png")}
-                style={styles.menuIcon}
-              />
-              <AppText preset="h3" style={styles.menuText}>
-                계정 탈퇴
-              </AppText>
-            </View>
-          </Pressable>
+              <Pressable style={styles.menuRow} onPress={onDeleteAccount}>
+                <View style={styles.menuLeft}>
+                  <Image
+                    source={require("@/assets/icons/etc/exit.png")}
+                    style={styles.menuIcon}
+                  />
+                  <AppText preset="h3" style={styles.menuText}>
+                    계정 탈퇴
+                  </AppText>
+                </View>
+              </Pressable>
+            </>
+          )}
         </View>
 
         <AppText preset="caption" style={{ textAlign: "center" }}>

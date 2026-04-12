@@ -2,7 +2,7 @@ import { useState } from "react";
 import Toast from "react-native-toast-message";
 import { auth, db } from "../lib/firebase";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import { ImageBackground, StyleSheet, TextInput, View } from "react-native";
+import { ImageBackground, StyleSheet, View } from "react-native";
 import AppButton from "../components/ui/AppButton";
 
 import { useRouter } from "expo-router";

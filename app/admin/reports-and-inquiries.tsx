@@ -379,7 +379,10 @@ const ReportAndInquiryScreen = () => {
                     </AppText>
 
                     <AppText preset="caption" style={styles.itemMeta}>
-                      {item.createdByNickname || "익명"} •{" "}
+                      {item.isAnonymous
+                        ? "익명"
+                        : item.createdByNickname || "사용자"}{" "}
+                      •{" "}
                       {formatDate(item.createdAt)}
                     </AppText>
                   </View>
