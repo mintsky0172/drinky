@@ -43,6 +43,7 @@ function toBrandLabel(raw: string | null | undefined) {
         paik: "빽다방",
         gongcha: "공차",
         oozy: "우지커피",
+        twosome: '투썸플레이스',
     };
 
     return labelMap[brand] ?? raw ?? "";
@@ -73,43 +74,43 @@ export default function NewReportScreen() {
       const recipesQ = query(recipesRef, where("isPublic", "==", true));
 
       const unsubscribe = onSnapshot(recipesQ, (snap) => {
-        const rows = snap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              name?: string;
-              brand?: string | null;
-              category?: string;
-              normalizedName?: string;
-              aliases?: string[];
-              searchKeywords?: string[];
-              drinkIconKey?: string;
-              createdAt?: { toMillis?: () => number };
-              popularityCount?: number;
-              popularityScore?: number;
-            };
+        const rows: SearchableDrinkItem[] = [];
 
-            const name = (data.name ?? "").trim();
-            if (!name) return null;
+        snap.docs.forEach((docSnap) => {
+          const data = docSnap.data() as {
+            name?: string;
+            brand?: string | null;
+            category?: string;
+            normalizedName?: string;
+            aliases?: string[];
+            searchKeywords?: string[];
+            drinkIconKey?: string;
+            createdAt?: { toMillis?: () => number };
+            popularityCount?: number;
+            popularityScore?: number;
+          };
 
-            return {
-              id: docSnap.id,
-              name,
-              brand: data.brand ?? null,
-              category: data.category,
-              normalizedName: data.normalizedName,
-              aliases: data.aliases ?? [],
-              searchKeywords: data.searchKeywords ?? [],
-              drinkIconKey: data.drinkIconKey,
-              createdAtMs:
-                typeof data.createdAt?.toMillis === "function"
-                  ? Number(data.createdAt.toMillis())
-                  : 0,
-              popularityScore: Number(
-                data.popularityCount ?? data.popularityScore ?? 0,
-              ),
-            } satisfies SearchableDrinkItem;
-          })
-          .filter((item): item is SearchableDrinkItem => item !== null);
+          const name = (data.name ?? "").trim();
+          if (!name) return;
+
+          rows.push({
+            id: docSnap.id,
+            name,
+            brand: data.brand ?? null,
+            category: data.category,
+            normalizedName: data.normalizedName,
+            aliases: data.aliases ?? [],
+            searchKeywords: data.searchKeywords ?? [],
+            drinkIconKey: data.drinkIconKey,
+            createdAtMs:
+              typeof data.createdAt?.toMillis === "function"
+                ? Number(data.createdAt.toMillis())
+                : 0,
+            popularityScore: Number(
+              data.popularityCount ?? data.popularityScore ?? 0,
+            ),
+          });
+        });
 
         setRecipeItems(rows);
       });

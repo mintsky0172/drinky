@@ -95,6 +95,7 @@ const BRAND_LABEL_MAP: Record<string, string> = {
   paik: "빽다방",
   gongcha: "공차",
   oozy: "우지커피",
+  twosome: '투썸플레이스',
 };
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [

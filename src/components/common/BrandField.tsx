@@ -11,6 +11,7 @@ const BRAND_OPTIONS = [
   "빽다방",
   "공차",
   "우지커피",
+  "투썸플레이스",
   "편의점/마트",
 ] as const;
 
@@ -22,8 +23,8 @@ const BrandField = ({
   onChangeText: (text: string) => void;
 }) => {
   return (
-    <View style={styles.inputGroup}>
-      <AppText preset="caption" style={styles.inputLabel}>
+    <View>
+      <AppText preset="caption">
         브랜드
       </AppText>
 
@@ -32,7 +33,7 @@ const BrandField = ({
         onChangeText={onChangeText}
         placeholder="브랜드 직접 입력 가능"
         placeholderTextColor={COLORS.semantic.textMuted}
-        style={styles.input}
+        style={{ lineHeight: 14, marginTop: 4 }}
       />
 
       <View style={styles.brandChipWrap}>
