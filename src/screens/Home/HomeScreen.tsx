@@ -1092,7 +1092,7 @@ const styles = StyleSheet.create({
 
   cta: {
     marginHorizontal: 20,
-    marginTop: 20,
+    marginTop: 8,
     marginBottom: 20,
   },
   calendar: {

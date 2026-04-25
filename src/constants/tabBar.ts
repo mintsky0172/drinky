@@ -2,12 +2,12 @@ import { COLORS } from "./colors";
 import { TYPOGRAPHY } from "./typography";
 
 export const TAB_BAR = {
-    height: 64,
+    height: 72,
     paddingTop: 4,
     paddingBottom: 6,
 
     style: {
-        height: 64,
+        height: 72,
         backgroundColor: COLORS.base.warmBeige,
         borderTopColor: COLORS.ui.border,
         borderTopWidth: 1,
