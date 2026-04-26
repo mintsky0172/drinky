@@ -1,4 +1,7 @@
-import { GENERATED_DRINK_ICONS } from "./icons.generated";
+import {
+  GENERATED_DRINK_ICONS,
+  GENERATED_DRINK_ICON_KEYS_LATEST,
+} from "./icons.generated";
 
 export const DRINK_ICONS = GENERATED_DRINK_ICONS;
 
@@ -65,7 +68,8 @@ export const INGREDIENT_ICONS = {
 export type IngredientIconKey = keyof typeof INGREDIENT_ICONS;
 
 export const DRINK_ICON_KEYS = Object.keys(DRINK_ICONS) as DrinkIconKey[];
+export const DRINK_ICON_KEYS_LATEST =
+  GENERATED_DRINK_ICON_KEYS_LATEST as readonly DrinkIconKey[];
 export const INGREDIENT_ICON_KEYS = Object.keys(
   INGREDIENT_ICONS,
 ) as IngredientIconKey[];
-

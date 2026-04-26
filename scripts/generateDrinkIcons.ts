@@ -51,6 +51,11 @@ function readExistingGeneratedMap(filePath: string): Map<string, string> {
   return map;
 }
 
+type GeneratedDrinkIconMeta = {
+  requirePath: string;
+  mtimeMs: number;
+};
+
 function build() {
   if (!fs.existsSync(DRINKS_DIR)) {
     throw new Error(`Directory not found: ${DRINKS_DIR}`);
@@ -58,37 +63,59 @@ function build() {
 
   const pngFiles = walkPngFiles(DRINKS_DIR);
   const existingMap = readExistingGeneratedMap(OUTPUT_FILE);
-  const keyToRequirePath = new Map<string, string>(existingMap);
+  const keyToMeta = new Map<string, GeneratedDrinkIconMeta>();
   const newlyAdded: string[] = [];
+
+  for (const [key, requirePath] of existingMap) {
+    keyToMeta.set(key, {
+      requirePath,
+      mtimeMs: 0,
+    });
+  }
 
   for (const absoluteFile of pngFiles) {
     const key = path.basename(absoluteFile, ".png");
     const relFromDrinks = toPosixPath(path.relative(DRINKS_DIR, absoluteFile));
     const requirePath = `@/assets/icons/drinks/${relFromDrinks}`;
+    const stat = fs.statSync(absoluteFile);
 
-    const existing = keyToRequirePath.get(key);
-    if (existing) continue;
+    if (!keyToMeta.has(key)) {
+      newlyAdded.push(key);
+    }
 
-    keyToRequirePath.set(key, requirePath);
-    newlyAdded.push(key);
+    keyToMeta.set(key, {
+      requirePath,
+      mtimeMs: stat.mtimeMs,
+    });
   }
 
   for (const [alias, target] of Object.entries(ALIASES)) {
-    if (keyToRequirePath.has(alias)) continue;
-    const targetPath = keyToRequirePath.get(target);
-    if (!targetPath) {
+    if (keyToMeta.has(alias)) continue;
+    const targetMeta = keyToMeta.get(target);
+    if (!targetMeta) {
       console.warn(
         `[generateDrinkIcons] Skipped alias "${alias}" -> "${target}" (target missing)`,
       );
       continue;
     }
-    keyToRequirePath.set(alias, targetPath);
+    keyToMeta.set(alias, {
+      requirePath: targetMeta.requirePath,
+      mtimeMs: targetMeta.mtimeMs,
+    });
     newlyAdded.push(alias);
   }
 
-  const sortedKeys = Array.from(keyToRequirePath.keys()).sort((a, b) =>
+  const sortedKeys = Array.from(keyToMeta.keys()).sort((a, b) =>
     a.localeCompare(b),
   );
+  const latestKeys = Array.from(keyToMeta.entries())
+    .sort((a, b) => {
+      if (b[1].mtimeMs !== a[1].mtimeMs) {
+        return b[1].mtimeMs - a[1].mtimeMs;
+      }
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([key]) => key);
 
   const lines: string[] = [];
   lines.push("// AUTO-GENERATED FILE. DO NOT EDIT.");
@@ -96,10 +123,16 @@ function build() {
   lines.push("");
   lines.push("export const GENERATED_DRINK_ICONS = {");
   for (const key of sortedKeys) {
-    const requirePath = keyToRequirePath.get(key)!;
+    const requirePath = keyToMeta.get(key)!.requirePath;
     lines.push(`  "${key}": require("${requirePath}"),`);
   }
   lines.push("} as const;");
+  lines.push("");
+  lines.push("export const GENERATED_DRINK_ICON_KEYS_LATEST = [");
+  for (const key of latestKeys) {
+    lines.push(`  "${key}",`);
+  }
+  lines.push("] as const;");
   lines.push("");
   lines.push("export type GeneratedDrinkIconKey = keyof typeof GENERATED_DRINK_ICONS;");
   lines.push("");

@@ -408,42 +408,40 @@ const NewRecipeScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {iconPickerTarget ? (
+      {iconPickerTarget === "drink" ? (
         <IconPickerModal
           visible
-          type={iconPickerTarget}
-          selectedKey={
-            iconPickerTarget === "drink"
-              ? resolveDrinkIconKey(drinkIconKey)
-              : resolveIngredientIconKey(calendarIconKey)
-          }
+          type="drink"
+          sortOrder="latest"
+          selectedKey={resolveDrinkIconKey(drinkIconKey)}
           onSelect={(key) => {
-            if (iconPickerTarget === "drink") {
-              setDrinkIconKey(key);
-            } else {
-              setCalendarIconKey(key);
-            }
+            setDrinkIconKey(key);
             setIconPickerTarget(null);
           }}
           onClose={() => setIconPickerTarget(null)}
           onResetToDefault={() => {
-            if (iconPickerTarget === "drink") {
-              setDrinkIconKey("");
-            } else {
-              setCalendarIconKey("");
-            }
+            setDrinkIconKey("");
             setIconPickerTarget(null);
           }}
-          title={
-            iconPickerTarget === "drink"
-              ? "음료 아이콘 선택"
-              : "재료 아이콘 선택"
-          }
-          subtitle={
-            iconPickerTarget === "drink"
-              ? "이 음료를 가장 잘 나타내는 아이콘을 골라 주세요."
-              : "달력과 홈에서 보여줄 대표 아이콘을 골라 주세요."
-          }
+          title="음료 아이콘 선택"
+          subtitle="이 음료를 가장 잘 나타내는 아이콘을 골라 주세요."
+        />
+      ) : iconPickerTarget === "ingredient" ? (
+        <IconPickerModal
+          visible
+          type="ingredient"
+          selectedKey={resolveIngredientIconKey(calendarIconKey)}
+          onSelect={(key) => {
+            setCalendarIconKey(key);
+            setIconPickerTarget(null);
+          }}
+          onClose={() => setIconPickerTarget(null)}
+          onResetToDefault={() => {
+            setCalendarIconKey("");
+            setIconPickerTarget(null);
+          }}
+          title="재료 아이콘 선택"
+          subtitle="달력과 홈에서 보여줄 대표 아이콘을 골라 주세요."
         />
       ) : null}
     </SafeAreaView>

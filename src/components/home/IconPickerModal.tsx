@@ -15,6 +15,7 @@ import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 import {
   DRINK_ICON_KEYS,
+  DRINK_ICON_KEYS_LATEST,
   DrinkIconKey,
   INGREDIENT_ICON_KEYS,
   IngredientIconKey,
@@ -34,6 +35,7 @@ type SharedProps = {
   onResetToDefault?: () => void;
   title?: string;
   subtitle?: string;
+  sortOrder?: "default" | "latest";
 };
 
 type DrinkProps = SharedProps & {
@@ -130,12 +132,19 @@ const IconPickerModal = (props: Props) => {
     onResetToDefault,
     title,
     subtitle,
+    sortOrder = "default",
   } = props;
 
   const [query, setQuery] = useState("");
 
-  const keys = type === "drink" ? DRINK_ICON_KEYS : INGREDIENT_ICON_KEYS;
-  const labels = type === "drink" ? DRINK_ICON_LABELS : INGREDIENT_ICON_LABELS;
+  const keys =
+    type === "drink"
+      ? sortOrder === "latest"
+        ? DRINK_ICON_KEYS_LATEST
+        : DRINK_ICON_KEYS
+      : INGREDIENT_ICON_KEYS;
+  const labels: Readonly<Record<string, string>> =
+    type === "drink" ? DRINK_ICON_LABELS : INGREDIENT_ICON_LABELS;
   const resolvedTitle = title ?? DEFAULT_TITLES[type];
   const resolvedSubtitle = subtitle ?? DEFAULT_SUBTITLES[type];
 
