@@ -55,7 +55,6 @@ seed/brand/*.json
 
 # Design source artifacts
 *.clip
-*.png
 marketing/*.png
 marketing/**/*.png
  
