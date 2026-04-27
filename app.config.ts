@@ -3,6 +3,8 @@ import { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
+  name: config.name ?? "drinky",
+  slug: config.slug ?? "drinky",
   android: {
     ...config.android,
     intentFilters: [
@@ -17,6 +19,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         category: ["BROWSABLE", "DEFAULT"],
       },
     ],
+    versionCode: 102,
   },
   ios: {
     ...config.ios,
