@@ -32,8 +32,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.somin.drinky",
-
+      "package": "com.somin.drinky"
     },
     "web": {
       "output": "static",

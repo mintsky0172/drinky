@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import React from "react";
 import TextField from "../ui/TextField";
 import { COLORS } from "@/src/constants/colors";
@@ -32,18 +32,24 @@ const TodayMemoCard = ({
           </Pressable>
 
           <View style={styles.right}>
-            <TextField
-              value={oneLine}
-              onChangeText={onChangeOneLine}
-              placeholder="어떤 하루였나요?"
-              placeholderTextColor={COLORS.semantic.textMuted}
-              style={styles.input}
-              multiline
-              maxLength={100}
-              returnKeyType="done"
-              onSubmitEditing={onSubmitOneLine}
-              onFocus={onFocusOneLine}
-            />
+            <View style={styles.inputWrap}>
+              {!oneLine ? (
+                <Text pointerEvents="none" style={styles.placeholder}>
+                  어떤 하루였나요?
+                </Text>
+              ) : null}
+              <TextField
+                value={oneLine}
+                onChangeText={onChangeOneLine}
+                placeholder=""
+                style={styles.input}
+                multiline
+                maxLength={100}
+                returnKeyType="done"
+                onSubmitEditing={onSubmitOneLine}
+                onFocus={onFocusOneLine}
+              />
+            </View>
           </View>
         </View>
       </View>
@@ -83,6 +89,9 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textMuted,
   },
   right: { flex: 1 },
+  inputWrap: {
+    position: "relative",
+  },
   label: {
     ...TYPOGRAPHY.preset.h3,
     color: COLORS.semantic.textPrimary,
@@ -93,8 +102,17 @@ const styles = StyleSheet.create({
   input: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
-    paddingTop: 4,
+    paddingTop: Platform.OS === "android" ? 10 : 4,
     paddingBottom: 12,
     minHeight: 80,
+  },
+  placeholder: {
+    position: "absolute",
+    top: Platform.OS === "android" ? 10 : 4,
+    left: 22,
+    right: 22,
+    zIndex: 1,
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textMuted,
   },
 });

@@ -682,7 +682,7 @@ function Calendar() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -747,57 +747,57 @@ function Calendar() {
                 onPress={() => setSelectedDate(cell.date)}
               >
                 <View
+                  key={`${cell.dateKey}-${iconKey ? "icon" : "date"}`}
                   style={[
                     styles.dayInner,
                     cell.isToday && styles.todayCell,
                     isSelected && styles.selectedCell,
                   ]}
                 >
-                  <View style={styles.dayNumberSlot}>
-                    <AppText
-                      style={[
-                        styles.dayText,
-                        !cell.inCurrentMonth && styles.outsideMonthText,
-                        cell.isToday && styles.todayText,
-                        isSelected && styles.selectedText,
-                        iconKey && styles.dayTextHidden,
-                      ]}
-                    >
-                      {cell.date.getDate()}
-                    </AppText>
-                  </View>
-
-                  <View style={styles.iconSlot}>
-                    <View
-                      style={[
-                        styles.iconAnchor,
-                        {
-                          width: calendarIconSize,
-                          height: calendarIconSize,
-                        },
-                      ]}
-                    >
-                      {iconKey ? (
+                  {iconKey ? (
+                    <View style={styles.iconSlot}>
+                      <View
+                        style={[
+                          styles.iconAnchor,
+                          {
+                            width: calendarIconSize,
+                            height: calendarIconSize,
+                          },
+                        ]}
+                      >
                         <IngredientIcon
                           iconKey={iconKey}
                           size={calendarIconSize}
                         />
-                      ) : null}
 
-                      {dayEntries.length > 1 ? (
-                        <View
-                          style={[
-                            styles.countBadge,
-                            isTablet && styles.countBadgeTablet,
-                          ]}
-                        >
-                          <AppText style={styles.countBadgeText}>
-                            {dayEntries.length}
-                          </AppText>
-                        </View>
-                      ) : null}
+                        {dayEntries.length > 1 ? (
+                          <View
+                            style={[
+                              styles.countBadge,
+                              isTablet && styles.countBadgeTablet,
+                            ]}
+                          >
+                            <AppText style={styles.countBadgeText}>
+                              {dayEntries.length}
+                            </AppText>
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
+                  ) : (
+                    <View style={styles.dayNumberSlot}>
+                      <AppText
+                        style={[
+                          styles.dayText,
+                          !cell.inCurrentMonth && styles.outsideMonthText,
+                          cell.isToday && styles.todayText,
+                          isSelected && styles.selectedText,
+                        ]}
+                      >
+                        {cell.date.getDate()}
+                      </AppText>
+                    </View>
+                  )}
                 </View>
               </Pressable>
             );
@@ -985,7 +985,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 16,
     paddingTop: 64,
-    paddingBottom: 16,
+    paddingBottom: 6,
   },
   header: {
     height: 48,
@@ -1061,12 +1061,6 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.h3,
     lineHeight: 20,
     color: COLORS.semantic.textPrimary,
-    textAlign: "center",
-  },
-  dayTextHidden: {
-    ...TYPOGRAPHY.preset.h3,
-    lineHeight: 20,
-    color: "transparent",
     textAlign: "center",
   },
   outsideMonthText: {

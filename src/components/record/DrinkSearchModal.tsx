@@ -188,21 +188,28 @@ const DrinkSearchModal = ({
           </View>
         </View>
 
-        <TextField
-          value={query}
-          onChangeText={onChangeQuery}
-          placeholder="음료 이름을 검색해 주세요"
-          autoFocus
-          leftIcon={
-            <Ionicons
-              name="search"
-              size={18}
-              color={COLORS.semantic.textSecondary}
-            />
-          }
-          containerStyle={styles.searchInputContainer}
-          style={styles.searchInputText}
-        />
+        <View style={styles.searchInputWrap}>
+          {!query ? (
+            <Text pointerEvents="none" style={styles.searchPlaceholder}>
+              음료 이름을 검색해 주세요
+            </Text>
+          ) : null}
+          <TextField
+            value={query}
+            onChangeText={onChangeQuery}
+            placeholder=""
+            autoFocus
+            leftIcon={
+              <Ionicons
+                name="search"
+                size={18}
+                color={COLORS.semantic.textSecondary}
+              />
+            }
+            containerStyle={styles.searchInputContainer}
+            style={styles.searchInputText}
+          />
+        </View>
 
         <View style={{ height: 6 }} />
 
@@ -351,6 +358,18 @@ const styles = StyleSheet.create({
   sortSelectText: {
     ...TYPOGRAPHY.preset.caption,
     color: COLORS.semantic.textSecondary,
+  },
+  searchInputWrap: {
+    position: "relative",
+  },
+  searchPlaceholder: {
+    position: "absolute",
+    top: 13,
+    left: 42,
+    right: 12,
+    zIndex: 1,
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textMuted,
   },
   searchInputContainer: {
     height: 44,

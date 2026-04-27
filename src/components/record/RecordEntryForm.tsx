@@ -1014,7 +1014,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
-    lineHeight: 0,
+    lineHeight: 18,
   },
   amountSelect: {
     height: 44,

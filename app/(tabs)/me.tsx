@@ -188,7 +188,7 @@ function Me() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
@@ -414,18 +414,22 @@ function GoalValue({
 }) {
   const [shouldBreak, setShouldBreak] = useState(false);
   const formattedValue = value.toLocaleString();
+  const canBreak = Math.abs(value) > 999;
+  const displayText = canBreak && shouldBreak
+    ? `${formattedValue}\n${unit}`
+    : `${formattedValue}${unit}`;
 
   return (
     <AppText
       preset="h3"
       style={styles.goalsValue}
       onTextLayout={(event) => {
-        if (!shouldBreak && event.nativeEvent.lines.length > 1) {
+        if (canBreak && !shouldBreak && event.nativeEvent.lines.length > 1) {
           setShouldBreak(true);
         }
       }}
     >
-      {shouldBreak ? `${formattedValue}\n${unit}` : `${formattedValue}${unit}`}
+      {displayText}
     </AppText>
   );
 }
@@ -480,7 +484,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 70,
-    paddingBottom: 20,
+    paddingBottom: 6,
     gap: 14,
     backgroundColor: "transparent",
   },

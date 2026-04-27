@@ -8,7 +8,10 @@ import {
   ScrollView,
   Image,
   Platform,
+  StyleProp,
+  KeyboardAvoidingView,
 } from "react-native";
+import type { TextStyle } from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import TextField from "@/src/components/ui/TextField";
@@ -57,6 +60,28 @@ type Item = {
   globalPopularityScore?: number;
 };
 type Option = { value: string; label: string };
+type TextFieldProps = React.ComponentProps<typeof TextField>;
+
+function PlaceholderTextField({
+  value,
+  placeholder,
+  placeholderStyle,
+  ...props
+}: TextFieldProps & { placeholderStyle?: StyleProp<TextStyle> }) {
+  return (
+    <View style={styles.placeholderFieldWrap}>
+      {!value && placeholder ? (
+        <Text
+          pointerEvents="none"
+          style={[styles.customPlaceholder, placeholderStyle]}
+        >
+          {placeholder}
+        </Text>
+      ) : null}
+      <TextField value={value} placeholder="" {...props} />
+    </View>
+  );
+}
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const formatDateDot = (d: Date) =>
@@ -742,6 +767,9 @@ const RecordCreateScreen = () => {
     setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, 120);
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 320);
   };
 
   return (
@@ -752,15 +780,20 @@ const RecordCreateScreen = () => {
             <AppText preset="body">기록을 불러오는 중이에요...</AppText>
           </View>
         ) : null}
-        {/* Body */}
-        <ScrollView
-          ref={scrollRef}
-          style={styles.body}
-          contentContainerStyle={styles.bodyContent}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          automaticallyAdjustKeyboardInsets
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "android" ? 72 : 0}
         >
+          {/* Body */}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            automaticallyAdjustKeyboardInsets
+          >
           {/* 날짜 */}
           <Text style={styles.sectionTitle}>날짜</Text>
           <Pressable
@@ -800,10 +833,12 @@ const RecordCreateScreen = () => {
           <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
             어디서 마셨나요? (선택)
           </Text>
-          <TextField
+          <PlaceholderTextField
             value={brand}
             onChangeText={setBrand}
             placeholder="예) 집, 회사, 스타벅스"
+            style={styles.brandInput}
+            placeholderStyle={styles.brandPlaceholder}
           />
 
           {/* 양 & 사이즈 */}
@@ -905,15 +940,17 @@ const RecordCreateScreen = () => {
           <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
             메모 (선택)
           </Text>
-          <TextField
+          <PlaceholderTextField
             value={memo}
             onChangeText={setMemo}
             placeholder="이 음료는 어땠나요?"
             style={styles.memo}
+            placeholderStyle={styles.memoPlaceholder}
             multiline
             onFocus={handleFocusMemo}
           />
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
 
         {/* 저장 버튼 */}
         <View style={{ paddingHorizontal: 16, paddingVertical: 22 }}>
@@ -1090,6 +1127,9 @@ export default RecordCreateScreen;
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "transparent" },
   container: { flex: 1, paddingTop: 20, paddingHorizontal: 20 },
+  keyboardAvoiding: {
+    flex: 1,
+  },
   editLoadingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(255,255,255,0.75)",
@@ -1199,10 +1239,41 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textSecondary,
   },
+  placeholderFieldWrap: {
+    position: "relative",
+  },
+  customPlaceholder: {
+    position: "absolute",
+    top: 15,
+    left: 22,
+    right: 22,
+    zIndex: 1,
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textMuted,
+  },
+  brandPlaceholder: {
+    top: 13,
+    left: 14,
+    right: 14,
+  },
+  memoPlaceholder: {
+    top: 8,
+    left: 14,
+    right: 14,
+  },
 
   icon: {
     width: 24,
     height: 24,
+  },
+  brandInput: {
+    height: 44,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingTop: 0,
+    paddingBottom: 0,
+    textAlignVertical: "center",
+    lineHeight: 18,
   },
 
   amountRow: {
@@ -1233,7 +1304,7 @@ const styles = StyleSheet.create({
     textAlignVertical: "center",
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
-    lineHeight: 0,
+    lineHeight: 18,
   },
   amountSelect: {
     height: 44,

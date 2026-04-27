@@ -9,6 +9,7 @@ import {
   Image,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import React, {
   useCallback,
@@ -678,6 +679,9 @@ const HomeScreen = () => {
     setTimeout(() => {
       scrollRef.current?.scrollToEnd({ animated: true });
     }, 120);
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd({ animated: true });
+    }, 320);
   };
 
   return (
@@ -697,57 +701,62 @@ const HomeScreen = () => {
           </View>
         </View>
       ) : null}
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-        automaticallyAdjustKeyboardInsets
-        onTouchStart={() => {
-          if (nutritionToolTipOpen) setNutritionToolTipOpen(false);
-        }}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoiding}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "android" ? 72 : 0}
       >
-        {/* 날짜 */}
-        <Pressable
-          style={styles.calendar}
-          onPress={() => setDatePickerOpen(true)}
-          hitSlop={10}
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
+          onTouchStart={() => {
+            if (nutritionToolTipOpen) setNutritionToolTipOpen(false);
+          }}
         >
-          <Image source={calendar} style={styles.calendarIcon} />
-        </Pressable>
-        <View style={styles.sectionTop}>
-          <View style={styles.dateBar}>
-            <Pressable
-              style={styles.iconBtn}
-              onPress={() => setSelectedDate((d) => addDays(d, -1))}
-              hitSlop={10}
-            >
-              <Ionicons
-                name="chevron-back"
-                size={18}
-                color={COLORS.semantic.textPrimary}
-              />
-            </Pressable>
-            <View style={styles.dateCenter}>
-              <Text style={styles.dateText}>
-                {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
-              </Text>
+          {/* 날짜 */}
+          <Pressable
+            style={styles.calendar}
+            onPress={() => setDatePickerOpen(true)}
+            hitSlop={10}
+          >
+            <Image source={calendar} style={styles.calendarIcon} />
+          </Pressable>
+          <View style={styles.sectionTop}>
+            <View style={styles.dateBar}>
+              <Pressable
+                style={styles.iconBtn}
+                onPress={() => setSelectedDate((d) => addDays(d, -1))}
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={18}
+                  color={COLORS.semantic.textPrimary}
+                />
+              </Pressable>
+              <View style={styles.dateCenter}>
+                <Text style={styles.dateText}>
+                  {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
+                </Text>
+              </View>
+              <Pressable
+                style={styles.iconBtn}
+                onPress={() => setSelectedDate((d) => addDays(d, +1))}
+                hitSlop={10}
+              >
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={COLORS.semantic.textPrimary}
+                />
+              </Pressable>
             </View>
-            <Pressable
-              style={styles.iconBtn}
-              onPress={() => setSelectedDate((d) => addDays(d, +1))}
-              hitSlop={10}
-            >
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={COLORS.semantic.textPrimary}
-              />
-            </Pressable>
           </View>
-        </View>
-        {/* 오늘의 음료 목록 */}
+          {/* 오늘의 음료 목록 */}
         <Text style={styles.sectionTitle}>오늘 마신 음료</Text>
         <View style={styles.listCard}>
           {todayDrinks.length ? (
@@ -935,7 +944,8 @@ const HomeScreen = () => {
           onPress={onPressWrite}
           style={styles.cta}
         />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -978,6 +988,9 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: "transparent",
+  },
+  keyboardAvoiding: {
+    flex: 1,
   },
   container: {
     flexGrow: 1,
