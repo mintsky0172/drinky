@@ -1,7 +1,8 @@
 import { TAB_BAR } from "@/src/constants/tabBar";
 import { TAB_ICONS } from "@/src/constants/tabIcons";
 import { Tabs } from "expo-router";
-import { Image, StyleSheet } from "react-native";
+import { Image, Platform, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function TabIcon({
   routeKey,
@@ -22,6 +23,9 @@ function TabIcon({
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+  const androidBottomInset = Platform.OS === "android" ? insets.bottom : 0;
+
   return (
     <Tabs
       screenOptions={{
@@ -29,7 +33,13 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: "transparent" },
 
         // 탭바
-        tabBarStyle: TAB_BAR.style as any,
+        tabBarStyle: [
+          TAB_BAR.style,
+          {
+            height: TAB_BAR.height + androidBottomInset,
+            paddingBottom: TAB_BAR.paddingBottom + androidBottomInset,
+          },
+        ] as any,
         tabBarActiveTintColor: TAB_BAR.activeTintColor,
         tabBarInactiveTintColor: TAB_BAR.inactiveTintColor,
         tabBarLabelStyle: TAB_BAR.labelStyle as any,

@@ -1,33 +1,76 @@
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
 import * as AuthSession from "expo-auth-session";
+import Constants from "expo-constants";
 import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
 import { auth } from "@/src/lib/firebase";
 import Toast from "react-native-toast-message";
+import { Platform } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
 
 export function useGoogleSignIn() {
-  const reversedClientId =
+  const isIOS = Platform.OS === "ios";
+  const iosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+  const androidClientId = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID;
+  const webClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
+  const iosReversedClientId =
     process.env.EXPO_PUBLIC_GOOGLE_IOS_REVERSED_CLIENT_ID;
-  if (!reversedClientId) {
-    throw new Error("EXPO_PUBLIC_GOOGLE_IOS_REVERSED_CLIENT_ID is missing");
-  }
+  const androidApplicationId =
+    Constants.expoConfig?.android?.package ?? "com.somin.drinky";
 
-  const redirectUri = `${reversedClientId}:/oauthredirect`;
+  const missingConfigMessage = isIOS
+    ? !iosReversedClientId
+      ? "EXPO_PUBLIC_GOOGLE_IOS_REVERSED_CLIENT_ID is missing"
+      : !iosClientId
+        ? "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID is missing"
+        : null
+    : Platform.OS === "android" && !androidClientId
+      ? "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID is missing"
+      : null;
+  const nativeClientId = isIOS ? iosClientId : androidClientId;
+  const redirectUri = isIOS
+    ? `${iosReversedClientId}:/oauthredirect`
+    : AuthSession.makeRedirectUri({
+        scheme: "drinky",
+        path: "oauthredirect",
+        native: `${androidApplicationId}:/oauthredirect`,
+      });
 
   const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId,
+    androidClientId,
+    webClientId,
     redirectUri,
     shouldAutoExchangeCode: false,
     scopes: ["openid", "profile", "email"],
   });
 
   const signIn = async () => {
+    if (missingConfigMessage) {
+      Toast.show({
+        type: "error",
+        text1: "Google OAuth 설정이 필요해요.",
+        text2: missingConfigMessage,
+      });
+      return null;
+    }
+
     const result = await promptAsync();
 
-    if (result.type !== "success") return null;
+    if (result.type !== "success") {
+      if (result.type === "error") {
+        Toast.show({
+          type: "error",
+          text1: "Google 로그인에 실패했어요.",
+          text2:
+            result.params?.error_description ??
+            result.params?.error ??
+            "Google OAuth 설정을 확인해 주세요.",
+        });
+      }
+      return null;
+    }
 
     let idToken = result.params?.id_token ?? result.authentication?.idToken;
     let accessToken =
@@ -37,7 +80,7 @@ export function useGoogleSignIn() {
     if ((!idToken || !accessToken) && result.params?.code && request?.codeVerifier) {
       const tokenResult = await AuthSession.exchangeCodeAsync(
         {
-          clientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID!,
+          clientId: nativeClientId!,
           code: result.params.code,
           redirectUri,
           extraParams: {

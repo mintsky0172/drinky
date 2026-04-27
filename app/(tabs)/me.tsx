@@ -521,6 +521,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   guestNoticeButton: {
+    width: '100%',
     alignSelf: "flex-start",
     borderRadius: 999,
     backgroundColor: COLORS.base.warmBeige,
@@ -529,6 +530,7 @@ const styles = StyleSheet.create({
   },
   guestNoticeButtonText: {
     color: COLORS.semantic.textPrimary,
+    textAlign: "center",
   },
   sectionHeaderRow: {
     flexDirection: "row",

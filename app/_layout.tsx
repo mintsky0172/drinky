@@ -1,11 +1,14 @@
 import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
+import * as WebBrowser from "expo-web-browser";
 import AuthProvider from "@/src/providers/AuthProvider";
 import { ImageBackground, StyleSheet } from "react-native";
 import Toast, { BaseToast, ErrorToast } from "react-native-toast-message";
 import { COLORS } from "@/src/constants/colors";
 
 const appBackground = require("../assets/images/background.png");
+
+WebBrowser.maybeCompleteAuthSession();
 
 const toastConfig = {
   success: (props: any) => (

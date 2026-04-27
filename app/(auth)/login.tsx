@@ -217,7 +217,7 @@ function Login() {
           </View>
         </View>
 
-        <View style={[styles.linkRow, { width: socialGroupWidth }]}>
+        <View style={styles.linkRow}>
           <Pressable style={styles.linkCell} onPress={() => router.push("/signup")}>
             <AppText style={styles.linkText}>회원가입</AppText>
           </Pressable>
