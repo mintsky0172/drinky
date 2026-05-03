@@ -32,6 +32,7 @@ type RecipeItem = {
   isPublic?: boolean;
   updatedAt?: any;
   drinkIconKey?: DrinkIconKey;
+  iconUrl?: string | null;
 };
 
 type VisibilityFilter = "all" | "public" | "hidden";
@@ -183,6 +184,7 @@ const AdminRecipesScreen = () => {
           isPublic: data.isPublic ?? true,
           updatedAt: data.updatedAt,
           drinkIconKey: data.drinkIconKey ?? "default",
+          iconUrl: data.iconUrl ?? null,
         };
       });
 
@@ -476,7 +478,11 @@ const AdminRecipesScreen = () => {
               }}
             >
               <View style={styles.recipeMain}>
-                <DrinkIcon iconKey={item.drinkIconKey} size={28} />
+                <DrinkIcon
+                  iconKey={item.drinkIconKey}
+                  iconUrl={item.iconUrl}
+                  size={28}
+                />
                 <AppText preset="h3" numberOfLines={1}>
                   {item.name}
                 </AppText>

@@ -57,6 +57,7 @@ type EntryRecord = {
   drinkIconKey?: string | null;
   iconKey?: string | null;
   calendarIconKey?: string | null;
+  calendarIconUrl?: string | null;
   unit: "cup" | "ml";
   servings?: number;
 };
@@ -65,6 +66,7 @@ type RecipeLookupItem = {
   id: string;
   name: string;
   drinkIconKey: DrinkIconKey;
+  iconUrl?: string | null;
 };
 
 type DayTotals = {
@@ -81,6 +83,7 @@ type DaySummaryRecord = {
 
 type CalendarDayMeta = {
   iconKey: IngredientIconKey | null;
+  iconUrl?: string | null;
   oneLine: string;
 };
 
@@ -281,6 +284,7 @@ function Calendar() {
           name?: string;
           category?: string;
           drinkIconKey?: string;
+          iconUrl?: string | null;
         };
 
         const name = (data.name ?? "").trim();
@@ -294,6 +298,7 @@ function Calendar() {
             name,
             category: data.category,
           }),
+          iconUrl: data.iconUrl ?? null,
         };
 
         nextById[recipe.id] = recipe;
@@ -331,6 +336,7 @@ function Calendar() {
             drinkIconKey: raw.drinkIconKey ?? null,
             iconKey: raw.iconKey ?? null,
             calendarIconKey: raw.calendarIconKey ?? null,
+            calendarIconUrl: raw.calendarIconUrl ?? null,
             unit: raw.unit ?? "cup",
             servings: Number(raw.servings ?? 0),
           };
@@ -383,6 +389,7 @@ function Calendar() {
             drinkIconKey: data.drinkIconKey ?? null,
             iconKey: data.iconKey ?? null,
             calendarIconKey: data.calendarIconKey,
+            calendarIconUrl: data.calendarIconUrl ?? null,
             unit: data.unit,
             servings: Number(data.servings ?? 0),
           };
@@ -591,6 +598,7 @@ function Calendar() {
             category: entry.category,
             isWaterOnly: entry.isWaterOnly,
           }),
+          resolvedIconUrl: matchedRecipe?.iconUrl ?? null,
         };
       }),
     [selectedEntries, recipesById, recipesByName],
@@ -615,30 +623,46 @@ function Calendar() {
         : null;
 
       let computedIconKey: IngredientIconKey | null = null;
+      let computedIconUrl: string | null = null;
 
       if (!overrideKey) {
-        const iconScores = new Map<IngredientIconKey, number>();
+        const iconScores = new Map<
+          string,
+          { iconKey: IngredientIconKey; iconUrl: string | null; score: number }
+        >();
 
         entries.forEach((entry) => {
           const key = inferIngredientIconFromEntry(entry);
+          const iconUrl =
+            typeof entry.calendarIconUrl === "string"
+              ? entry.calendarIconUrl
+              : null;
           const ml = Number(entry.totalMl ?? 0);
           const weight = entry.isWaterOnly ? 0.7 : 1;
           const score = ml * weight;
+          const mapKey = iconUrl ? `url:${iconUrl}` : `key:${key}`;
+          const prev = iconScores.get(mapKey);
 
-          iconScores.set(key, (iconScores.get(key) ?? 0) + score);
+          iconScores.set(mapKey, {
+            iconKey: key,
+            iconUrl,
+            score: (prev?.score ?? 0) + score,
+          });
         });
 
         let max = -1;
-        iconScores.forEach((score, key) => {
-          if (score > max) {
-            max = score;
-            computedIconKey = key;
+        iconScores.forEach((value) => {
+          if (value.score > max) {
+            max = value.score;
+            computedIconKey = value.iconKey;
+            computedIconUrl = value.iconUrl;
           }
         });
       }
 
       result[dateKey] = {
         iconKey: overrideKey ?? computedIconKey ?? null,
+        iconUrl: overrideKey ? null : computedIconUrl,
         oneLine: summary?.oneLine ?? "",
       };
     });
@@ -767,6 +791,7 @@ function Calendar() {
                       >
                         <IngredientIcon
                           iconKey={iconKey}
+                          iconUrl={calendarMetaByDateKey[cell.dateKey]?.iconUrl}
                           size={calendarIconSize}
                         />
 
@@ -922,6 +947,7 @@ function Calendar() {
                       <View style={styles.entryLeft}>
                         <DrinkIcon
                           iconKey={entry.resolvedDrinkIconKey}
+                          iconUrl={entry.resolvedIconUrl}
                           size={28}
                         />
                         <View style={styles.entryInfo}>

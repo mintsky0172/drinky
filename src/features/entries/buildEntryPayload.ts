@@ -9,6 +9,7 @@ export type BuildEntryInput = {
   drinkName: string;
   drinkId?: string | null;
   iconKey?: string | null;
+  calendarIconUrl?: string | null;
   sizeLabel?: SizeLabel | null;
   mlPerServing?: number | null;
   caffeineMgPerServing?: number | null;
@@ -78,6 +79,7 @@ export default function buildEntryPayload(
     drinkName,
     ...(input.sizeLabel ? { sizeLabel: input.sizeLabel } : {}),
     ...(input.iconKey ? { iconKey: input.iconKey } : { iconKey: "default" }),
+    calendarIconUrl: input.calendarIconUrl?.trim() || null,
     brandLabel: rawBrandLabel || null,
     brandNormalized: rawBrandLabel ? rawBrandLabel.toLowerCase() : null,
     isWaterOnly,

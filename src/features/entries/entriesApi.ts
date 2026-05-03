@@ -48,6 +48,7 @@ function toGuestEntry(entry: EntryWritePayload): GuestEntry {
     brandLabel: entry.brandLabel ?? null,
     brandNormalized: entry.brandNormalized ?? null,
     iconKey: entry.iconKey,
+    calendarIconUrl: entry.calendarIconUrl ?? null,
     isWaterOnly: entry.isWaterOnly,
     sizeLabel: entry.sizeLabel ?? null,
     servings: entry.servings,

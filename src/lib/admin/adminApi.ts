@@ -9,6 +9,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { InquiryDoc, ReportDoc } from "@/src/types/admin";
+import { uploadIconToStorage } from "@/src/features/admin/uploadDrinkIcon";
 
 export type Recipe = {
   id: string;
@@ -16,7 +17,9 @@ export type Recipe = {
   brand?: string;
   category?: string;
   drinkIconKey?: string;
+  iconUrl?: string;
   calendarIconKey?: string;
+  ingredientIconUrl?: string;
   mlPerServing?: number;
   caffeineMgPerServing?: number;
   sugarGPerServing?: number;
@@ -37,7 +40,9 @@ type UpdateRecipeInput = {
   brand?: string;
   category?: string;
   drinkIconKey?: string;
+  iconUrl?: string;
   calendarIconKey?: string;
+  ingredientIconUrl?: string;
   mlPerServing: number;
   caffeineMgPerServing: number;
   sugarGPerServing: number;
@@ -54,7 +59,9 @@ type CreateRecipeInput = {
     brand?: string;
     category?: string;
     drinkIconKey?: string;
+    iconUrl?: string;
     calendarIconKey?: string;
+    ingredientIconUrl?: string;
     mlPerServing: number;
     caffeineMgPerServing: number;
     sugarGPerServing: number;
@@ -215,4 +222,54 @@ export async function createRecipe(
 
     const ref = await addDoc(collection(db, 'recipes'), payload);
     return ref.id;
+}
+
+export async function saveDrinkIcon(
+  recipeId: string,
+  imageUri: string,
+  iconKey?: string,
+  adminUid?: string,
+) {
+  const { iconUrl, storagePath } = await uploadIconToStorage({
+    uri: imageUri,
+    folder: 'drink-icons',
+    entityId: recipeId,
+    fileBaseName: iconKey
+  });
+
+  await updateDoc(doc(db, "recipes", recipeId), {
+    iconUrl,
+    iconStoragePath: storagePath,
+    iconUpdatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...(adminUid ? { updatedBy: adminUid } : {}),
+    source: "admin",
+  });
+
+  return iconUrl;
+}
+
+export async function saveIngredientIcon(
+  recipeId: string,
+  imageUri: string,
+  iconKey?: string,
+  adminUid?: string,
+) {
+  const { iconUrl, storagePath } = await uploadIconToStorage({
+    uri: imageUri,
+    folder: 'ingredient-icons',
+    entityId: recipeId,
+    fileBaseName: iconKey,
+  });
+
+  await updateDoc(doc(db, "recipes", recipeId), {
+    ingredientIconUrl: iconUrl,
+    ingredientIconStoragePath: storagePath,
+    ingredientIconUpdatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    ...(adminUid ? { updatedBy: adminUid } : {}),
+    source: "admin",
+  });
+
+  return iconUrl;
 }

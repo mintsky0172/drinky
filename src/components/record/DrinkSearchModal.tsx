@@ -23,6 +23,7 @@ export type SearchableDrinkItem = {
   aliases?: string[];
   searchKeywords?: string[];
   drinkIconKey?: string;
+  iconUrl?: string | null;
   createdAtMs?: number;
   popularityScore?: number;
   brand?: string | null;
@@ -137,6 +138,7 @@ const DrinkSearchModal = ({
               ? (item.drinkIconKey as DrinkIconKey)
               : undefined
           }
+          iconUrl={item.iconUrl}
           size={32}
         />
         <Text

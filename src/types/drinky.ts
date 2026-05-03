@@ -29,6 +29,7 @@ export type EntryDoc = {
     brandNormalized?: string | null,
 
     iconKey: string;
+    calendarIconUrl?: string | null;
     isWaterOnly: boolean;
 
     sizeLabel?: SizeLabel;

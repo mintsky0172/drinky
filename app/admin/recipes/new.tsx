@@ -11,7 +11,12 @@ import {
 import React, { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useAuth } from "@/src/providers/AuthProvider";
-import { createRecipe, updateReportStatus } from "@/src/lib/admin/adminApi";
+import {
+  createRecipe,
+  saveDrinkIcon,
+  saveIngredientIcon,
+  updateReportStatus,
+} from "@/src/lib/admin/adminApi";
 import Toast from "react-native-toast-message";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,12 +32,13 @@ import {
   type IngredientIconKey,
 } from "@/src/constants/icons";
 import BrandField from "@/src/components/common/BrandField";
+import * as ImagePicker from "expo-image-picker";
 
 type RecipeFormValues = {
   name: string;
   category: string;
-  drinkIconKey: string;
-  calendarIconKey: string;
+  hasDrinkIcon: boolean;
+  hasIngredientIcon: boolean;
   mlPerServing: string;
   caffeineMgPerServing: string;
   sugarGPerServing: string;
@@ -54,6 +60,19 @@ const CATEGORY_OPTIONS = [
   { value: "frappe", label: "프라페" },
 ] as const;
 
+async function pickIconImage() {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsEditing: true,
+    aspect: [1, 1],
+    quality: 1,
+  });
+
+  if (result.canceled) return null;
+
+  return result.assets[0].uri;
+}
+
 function validateRecipeForm(values: RecipeFormValues) {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -70,12 +89,12 @@ function validateRecipeForm(values: RecipeFormValues) {
     errors.push("카테고리를 선택해 주세요.");
   }
 
-  if (!values.drinkIconKey.trim()) {
-    errors.push("음료 아이콘을 선택해 주세요.");
+  if (!values.hasDrinkIcon) {
+    errors.push("음료 아이콘 또는 커스텀 아이콘을 선택해 주세요.");
   }
 
-  if (!values.calendarIconKey.trim()) {
-    errors.push("재료 아이콘을 선택해 주세요.");
+  if (!values.hasIngredientIcon) {
+    errors.push("재료 아이콘 또는 커스텀 아이콘을 선택해 주세요.");
   }
 
   if (!Number.isFinite(ml) || ml <= 0) {
@@ -127,7 +146,11 @@ const NewRecipeScreen = () => {
   const [brand, setBrand] = useState(params.prefillBrand ?? "");
   const [category, setCategory] = useState<string>("other");
   const [drinkIconKey, setDrinkIconKey] = useState("");
+  const [drinkIconUrl, setDrinkIconUrl] = useState<string | null>(null);
+  const [pendingDrinkIconUri, setPendingDrinkIconUri] = useState<string | null>(null);
   const [calendarIconKey, setCalendarIconKey] = useState("");
+  const [ingredientIconUrl, setIngredientIconUrl] = useState<string | null>(null);
+  const [pendingIngredientIconUri, setPendingIngredientIconUri] = useState<string | null>(null);
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
@@ -147,8 +170,12 @@ const NewRecipeScreen = () => {
   const canSave =
     name.trim().length > 0 &&
     category.trim().length > 0 &&
-    drinkIconKey.trim().length > 0 &&
-    calendarIconKey.trim().length > 0 &&
+    (drinkIconKey.trim().length > 0 ||
+      Boolean(pendingDrinkIconUri) ||
+      Boolean(drinkIconUrl)) &&
+    (calendarIconKey.trim().length > 0 ||
+      Boolean(pendingIngredientIconUri) ||
+      Boolean(ingredientIconUrl)) &&
     Number(mlPerServing || 0) > 0 &&
     !saving;
 
@@ -158,8 +185,14 @@ const NewRecipeScreen = () => {
     const { errors, warnings } = validateRecipeForm({
       name,
       category,
-      drinkIconKey,
-      calendarIconKey,
+      hasDrinkIcon:
+        drinkIconKey.trim().length > 0 ||
+        Boolean(pendingDrinkIconUri) ||
+        Boolean(drinkIconUrl),
+      hasIngredientIcon:
+        calendarIconKey.trim().length > 0 ||
+        Boolean(pendingIngredientIconUri) ||
+        Boolean(ingredientIconUrl),
       mlPerServing,
       caffeineMgPerServing,
       sugarGPerServing,
@@ -173,10 +206,13 @@ const NewRecipeScreen = () => {
       return;
     }
 
+    let recipeId: string | null = null;
+    let saveStage: "create" | "drinkIcon" | "ingredientIcon" | "report" = "create";
+
     try {
       setSaving(true);
 
-      await createRecipe(
+      recipeId = await createRecipe(
         {
           name: name.trim(),
           brand: brand.trim(),
@@ -196,7 +232,32 @@ const NewRecipeScreen = () => {
         user.uid,
       );
 
+      if (pendingDrinkIconUri) {
+        saveStage = "drinkIcon";
+        const uploadedIconUrl = await saveDrinkIcon(
+          recipeId,
+          pendingDrinkIconUri,
+          drinkIconKey.trim() || undefined,
+          user.uid,
+        );
+        setDrinkIconUrl(uploadedIconUrl);
+        setPendingDrinkIconUri(null);
+      }
+
+      if (pendingIngredientIconUri) {
+        saveStage = "ingredientIcon";
+        const uploadedIngredientIconUrl = await saveIngredientIcon(
+          recipeId,
+          pendingIngredientIconUri,
+          calendarIconKey.trim() || undefined,
+          user.uid,
+        );
+        setIngredientIconUrl(uploadedIngredientIconUrl);
+        setPendingIngredientIconUri(null);
+      }
+
       if (reportId) {
+        saveStage = "report";
         await updateReportStatus(reportId, {
           status: "done",
           adminMemo: "관리자 페이지에서 레시피 반영 완료",
@@ -208,10 +269,36 @@ const NewRecipeScreen = () => {
       setValidationWarnings([]);
       router.back();
     } catch {
-      Toast.show({ type: "error", text1: "레시피 추가에 실패했어요" });
+      if ((saveStage === "drinkIcon" || saveStage === "ingredientIcon") && recipeId) {
+        Toast.show({
+          type: "error",
+          text1: "레시피는 추가됐지만 아이콘 업로드는 실패했어요",
+        });
+        router.back();
+      } else if (saveStage === "report" && recipeId) {
+        Toast.show({
+          type: "error",
+          text1: "레시피는 추가됐지만 제보 상태 업데이트는 실패했어요",
+        });
+        router.back();
+      } else {
+        Toast.show({ type: "error", text1: "레시피 추가에 실패했어요" });
+      }
     } finally {
       setSaving(false);
     }
+  };
+
+  const handlePickDrinkCustomIcon = async () => {
+    const uri = await pickIconImage();
+    if (!uri) return;
+    setPendingDrinkIconUri(uri);
+  };
+
+  const handlePickIngredientCustomIcon = async () => {
+    const uri = await pickIconImage();
+    if (!uri) return;
+    setPendingIngredientIconUri(uri);
   };
 
   return (
@@ -248,11 +335,23 @@ const NewRecipeScreen = () => {
               placeholder="음료 아이콘을 선택해 주세요"
               icon={
                 <DrinkIcon
-                  iconKey={resolveDrinkIconKey(drinkIconKey)}
+                  iconKey={resolveOptionalDrinkIconKey(drinkIconKey)}
+                  iconUrl={pendingDrinkIconUri ?? drinkIconUrl}
                   size={28}
                 />
               }
               onPress={() => setIconPickerTarget("drink")}
+            />
+            <UploadIconField
+              label="커스텀 음료 아이콘"
+              status={
+                pendingDrinkIconUri
+                  ? "새 이미지가 선택됐어요. 저장하면 업로드돼요."
+                  : drinkIconUrl
+                    ? "Firebase Storage 아이콘이 연결돼 있어요."
+                    : "기본 로컬 아이콘 대신 사용할 이미지를 업로드할 수 있어요."
+              }
+              onPress={handlePickDrinkCustomIcon}
             />
             <IconSelectField
               label="재료 아이콘"
@@ -261,10 +360,22 @@ const NewRecipeScreen = () => {
               icon={
                 <IngredientIcon
                   iconKey={resolveIngredientIconKey(calendarIconKey)}
+                  iconUrl={pendingIngredientIconUri ?? ingredientIconUrl}
                   size={28}
                 />
               }
               onPress={() => setIconPickerTarget("ingredient")}
+            />
+            <UploadIconField
+              label="커스텀 재료 아이콘"
+              status={
+                pendingIngredientIconUri
+                  ? "새 이미지가 선택됐어요. 저장하면 업로드돼요."
+                  : ingredientIconUrl
+                    ? "Firebase Storage 아이콘이 연결돼 있어요."
+                    : "기본 로컬 아이콘 대신 사용할 이미지를 업로드할 수 있어요."
+              }
+              onPress={handlePickIngredientCustomIcon}
             />
           </View>
 
@@ -638,8 +749,46 @@ function IconSelectField({
   );
 }
 
+function UploadIconField({
+  label,
+  status,
+  onPress,
+}: {
+  label: string;
+  status: string;
+  onPress: () => void;
+}) {
+  return (
+    <View style={styles.inputGroup}>
+      <AppText preset="caption" style={styles.inputLabel}>
+        {label}
+      </AppText>
+
+      <Pressable style={styles.iconUploadField} onPress={onPress}>
+        <View style={styles.iconUploadTextWrap}>
+          <AppText preset="body" style={styles.iconUploadTitle}>
+            이미지 선택
+          </AppText>
+          <AppText preset="caption" style={styles.iconUploadHint}>
+            {status}
+          </AppText>
+        </View>
+        <Ionicons
+          name="image-outline"
+          size={18}
+          color={COLORS.semantic.textSecondary}
+        />
+      </Pressable>
+    </View>
+  );
+}
+
 function resolveDrinkIconKey(key?: string): DrinkIconKey {
   return key && key in DRINK_ICONS ? (key as DrinkIconKey) : "ice_americano";
+}
+
+function resolveOptionalDrinkIconKey(key?: string): DrinkIconKey | null {
+  return key && key in DRINK_ICONS ? (key as DrinkIconKey) : null;
 }
 
 function resolveIngredientIconKey(key?: string): IngredientIconKey {
@@ -770,6 +919,27 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textPrimary,
   },
   iconSelectHint: {
+    color: COLORS.semantic.textSecondary,
+  },
+  iconUploadField: {
+    minHeight: 56,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.semantic.surface,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  iconUploadTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  iconUploadTitle: {
+    color: COLORS.semantic.textPrimary,
+  },
+  iconUploadHint: {
     color: COLORS.semantic.textSecondary,
   },
   toggleRow: {

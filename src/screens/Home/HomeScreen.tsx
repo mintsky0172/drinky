@@ -203,7 +203,10 @@ function buildOverviewFromEntries(entries: any[]) {
     caffeineMg: 0,
     sugarG: 0,
   };
-  const iconScores = new Map<IngredientIconKey, number>();
+  const iconScores = new Map<
+    string,
+    { iconKey: IngredientIconKey; iconUrl: string | null; score: number }
+  >();
 
   entries.forEach((e) => {
     const name = (e.drinkName as string) ?? "알 수 없는 음료";
@@ -228,15 +231,27 @@ function buildOverviewFromEntries(entries: any[]) {
     };
 
     const iconKey = inferIngredientIconFromEntry(e);
-    iconScores.set(iconKey, (iconScores.get(iconKey) ?? 0) + scoreForIcon(e));
+    const iconUrl =
+      typeof e?.calendarIconUrl === "string" ? e.calendarIconUrl : null;
+    const score = scoreForIcon(e);
+    const mapKey = iconUrl ? `url:${iconUrl}` : `key:${iconKey}`;
+    const prevIconScore = iconScores.get(mapKey);
+
+    iconScores.set(mapKey, {
+      iconKey,
+      iconUrl,
+      score: (prevIconScore?.score ?? 0) + score,
+    });
   });
 
   let topIconKey: IngredientIconKey | null = null;
+  let topIconUrl: string | null = null;
   let topIconScore = -1;
-  iconScores.forEach((score, key) => {
-    if (score > topIconScore) {
-      topIconScore = score;
-      topIconKey = key;
+  iconScores.forEach((value) => {
+    if (value.score > topIconScore) {
+      topIconScore = value.score;
+      topIconKey = value.iconKey;
+      topIconUrl = value.iconUrl;
     }
   });
 
@@ -252,6 +267,7 @@ function buildOverviewFromEntries(entries: any[]) {
         d.unit === "cup" ? `${Math.round(d.servings)}잔` : `${Math.round(d.totalMl)}mL`,
     })),
     topIconKey,
+    topIconUrl,
   };
 }
 
@@ -326,11 +342,16 @@ const HomeScreen = () => {
   const [hasSeenGoalConfettiToday, setHasSeenGoalConfettiToday] =
     useState(false);
   const [topIconKey, setTopIconKey] = useState<IngredientIconKey | null>(null);
+  const [topIconUrl, setTopIconUrl] = useState<string | null>(null);
   const [overrideIconKey, setOverrideIconKey] =
     useState<IngredientIconKey | null>(null);
   const todayIconKey = useMemo<IngredientIconKey>(
     () => overrideIconKey ?? topIconKey ?? "default",
     [overrideIconKey, topIconKey],
+  );
+  const todayIconUrl = useMemo(
+    () => (overrideIconKey ? null : topIconUrl),
+    [overrideIconKey, topIconUrl],
   );
   const [showConfetti, setShowConfetti] = useState(false);
   const [reviewPromptOpen, setReviewPromptOpen] = useState(false);
@@ -395,6 +416,7 @@ const HomeScreen = () => {
         setTodayDrinks(overview.todayDrinks);
         setTotals(overview.totals);
         setTopIconKey(overview.topIconKey);
+        setTopIconUrl(overview.topIconUrl);
         setGoals(guestGoals);
         setTodayOneLine(summary?.oneLine ?? "");
         setOverrideIconKey(
@@ -499,12 +521,14 @@ const HomeScreen = () => {
         setTotals(overview.totals);
         setTodayDrinks(overview.todayDrinks);
         setTopIconKey(overview.topIconKey);
+        setTopIconUrl(overview.topIconUrl);
       },
       () => {
         // entries 구독 실패 시 초기화
         setTodayDrinks([]);
         setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0 });
         setTopIconKey(null);
+        setTopIconUrl(null);
       },
     );
 
@@ -838,7 +862,13 @@ const HomeScreen = () => {
         <Text style={styles.statusLine}>{summaryText}</Text>
         {/* 오늘의 한줄 */}
         <TodayMemoCard
-          icon={<IngredientIcon iconKey={todayIconKey} size={32} />}
+          icon={
+            <IngredientIcon
+              iconKey={todayIconKey}
+              iconUrl={todayIconUrl}
+              size={32}
+            />
+          }
           oneLine={todayOneLine}
           onPressIcon={() => setIconPickerOpen(true)}
           onChangeOneLine={handleChangeOneLine}

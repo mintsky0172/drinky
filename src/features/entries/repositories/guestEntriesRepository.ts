@@ -10,6 +10,7 @@ export type GuestEntry = {
   brandLabel?: string | null;
   brandNormalized?: string | null;
   iconKey: string;
+  calendarIconUrl?: string | null;
   isWaterOnly: boolean;
   sizeLabel?: SizeLabel | null;
   servings: number;

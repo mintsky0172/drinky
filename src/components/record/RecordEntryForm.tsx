@@ -40,7 +40,9 @@ type Item = {
   aliases?: string[];
   searchKeywords?: string[];
   drinkIconKey?: string;
+  iconUrl?: string | null;
   calendarIconKey?: string;
+  ingredientIconUrl?: string | null;
   mlPerServing?: number;
   caffeineMgPerServing?: number;
   sugarGPerServing?: number;
@@ -334,6 +336,9 @@ const RecordCreateScreen = () => {
             name: data.name as string | undefined,
             category: data.category as string | undefined,
           }),
+          iconUrl: (data.iconUrl as string | undefined) ?? null,
+          ingredientIconUrl:
+            (data.ingredientIconUrl as string | undefined) ?? null,
           calendarIconKey: resolveCalendarIconKey({
             calendarIconKey: data.calendarIconKey,
             name: data.name as string | undefined,
@@ -482,6 +487,11 @@ const RecordCreateScreen = () => {
         aliases: matched?.aliases,
         searchKeywords: matched?.searchKeywords,
         drinkIconKey,
+        iconUrl: matched?.iconUrl ?? null,
+        ingredientIconUrl:
+          (entry?.calendarIconUrl as string | undefined) ??
+          matched?.ingredientIconUrl ??
+          null,
         calendarIconKey: resolveCalendarIconKey({
           calendarIconKey: entry?.iconKey ?? matched?.calendarIconKey,
           name: matched?.name ?? drinkName,
@@ -561,6 +571,7 @@ const RecordCreateScreen = () => {
           category: picked.category,
           isWaterOnly: picked.isWaterOnly,
         }),
+        calendarIconUrl: picked.ingredientIconUrl ?? null,
         mlPerServing: picked.mlPerServing,
         caffeineMgPerServing: picked.caffeineMgPerServing,
         sugarGPerServing: picked.sugarGPerServing,

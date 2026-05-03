@@ -12,7 +12,12 @@ import { TYPOGRAPHY } from "@/src/constants/typography";
 import { DRINK_ICONS, DrinkIconKey } from "@/src/constants/icons";
 import DrinkIcon from "../common/DrinkIcon";
 
-type Item = { id: string; name: string; drinkIconKey?: DrinkIconKey };
+type Item = {
+  id: string;
+  name: string;
+  drinkIconKey?: string;
+  iconUrl?: string | null;
+};
 
 type Props = {
   visible: boolean;
@@ -74,6 +79,7 @@ const DrinkQuickPickModal = ({
                     ? (item.drinkIconKey as DrinkIconKey)
                     : undefined
                 }
+                iconUrl={item.iconUrl}
                 size={32}
               />
               <Text

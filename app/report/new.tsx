@@ -85,6 +85,7 @@ export default function NewReportScreen() {
             aliases?: string[];
             searchKeywords?: string[];
             drinkIconKey?: string;
+            iconUrl?: string | null;
             createdAt?: { toMillis?: () => number };
             popularityCount?: number;
             popularityScore?: number;
@@ -102,6 +103,7 @@ export default function NewReportScreen() {
             aliases: data.aliases ?? [],
             searchKeywords: data.searchKeywords ?? [],
             drinkIconKey: data.drinkIconKey,
+            iconUrl: data.iconUrl ?? null,
             createdAtMs:
               typeof data.createdAt?.toMillis === "function"
                 ? Number(data.createdAt.toMillis())
