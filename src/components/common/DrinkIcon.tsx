@@ -14,7 +14,7 @@ const DrinkIcon = ({ iconUrl, iconKey, size = 32 }: DrinkIconProps) => {
       ? DRINK_ICONS[iconKey as DrinkIconKey]
       : undefined;
 
-  const source = localSource ?? (iconUrl ? { uri: iconUrl } : undefined);
+  const source = (iconUrl ? { uri: iconUrl } : undefined) ?? localSource;
 
   if (source) {
     return (

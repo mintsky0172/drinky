@@ -67,6 +67,7 @@ type RecipeLookupItem = {
   name: string;
   drinkIconKey: DrinkIconKey;
   iconUrl?: string | null;
+  ingredientIconUrl?: string | null;
 };
 
 type DayTotals = {
@@ -285,6 +286,7 @@ function Calendar() {
           category?: string;
           drinkIconKey?: string;
           iconUrl?: string | null;
+          ingredientIconUrl?: string | null;
         };
 
         const name = (data.name ?? "").trim();
@@ -299,6 +301,7 @@ function Calendar() {
             category: data.category,
           }),
           iconUrl: data.iconUrl ?? null,
+          ingredientIconUrl: data.ingredientIconUrl ?? null,
         };
 
         nextById[recipe.id] = recipe;
@@ -632,11 +635,14 @@ function Calendar() {
         >();
 
         entries.forEach((entry) => {
+          const matchedRecipe =
+            (entry.drinkId ? recipesById[entry.drinkId] : undefined) ??
+            recipesByName[entry.drinkName.trim().toLowerCase()];
           const key = inferIngredientIconFromEntry(entry);
           const iconUrl =
             typeof entry.calendarIconUrl === "string"
               ? entry.calendarIconUrl
-              : null;
+              : matchedRecipe?.ingredientIconUrl ?? null;
           const ml = Number(entry.totalMl ?? 0);
           const weight = entry.isWaterOnly ? 0.7 : 1;
           const score = ml * weight;
@@ -667,7 +673,7 @@ function Calendar() {
       };
     });
     return result;
-  }, [entriesByDateKey, summariesByDateKey]);
+  }, [entriesByDateKey, recipesById, recipesByName, summariesByDateKey]);
 
   const openDeleteConfirm = (entry: EntryRecord) => {
     if (deleting) return;

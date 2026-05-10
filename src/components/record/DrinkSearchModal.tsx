@@ -1,5 +1,4 @@
 import {
-  FlatList,
   ListRenderItemInfo,
   Modal,
   Pressable,
@@ -14,6 +13,7 @@ import { TYPOGRAPHY } from "@/src/constants/typography";
 import TextField from "@/src/components/ui/TextField";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
 import { DRINK_ICONS, DrinkIconKey } from "@/src/constants/icons";
+import { FlashList } from "@shopify/flash-list";
 
 export type SearchableDrinkItem = {
   id: string;
@@ -50,7 +50,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   water: "물",
   other: "기타",
   shake: "쉐이크",
-  frappe: '프라페',
+  frappe: "프라페",
 };
 
 type SortMode = "name" | "latest" | "popular";
@@ -129,7 +129,10 @@ const DrinkSearchModal = ({
       .sort(compareBySort);
   }, [items, query, selectedCategory, sortMode]);
 
-  const renderItem = ({ item, index }: ListRenderItemInfo<SearchableDrinkItem>) => (
+  const renderItem = ({
+    item,
+    index,
+  }: ListRenderItemInfo<SearchableDrinkItem>) => (
     <View>
       <Pressable style={styles.row} onPress={() => onPick(item)}>
         <DrinkIcon
@@ -179,7 +182,8 @@ const DrinkSearchModal = ({
               onPress={() => setSortSelectOpen(true)}
             >
               <Text style={styles.sortSelectText}>
-                {SORT_OPTIONS.find((o) => o.key === sortMode)?.label ?? "가나다순"}
+                {SORT_OPTIONS.find((o) => o.key === sortMode)?.label ??
+                  "가나다순"}
               </Text>
               <Ionicons
                 name="chevron-down"
@@ -216,7 +220,7 @@ const DrinkSearchModal = ({
         <View style={{ height: 6 }} />
 
         <View style={styles.listSection}>
-          <FlatList
+          <FlashList
             data={filtered}
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
@@ -230,7 +234,7 @@ const DrinkSearchModal = ({
             removeClippedSubviews
             ListHeaderComponent={
               <>
-                <FlatList
+                <FlashList
                   data={categories}
                   keyExtractor={(item) => item}
                   horizontal
@@ -295,7 +299,10 @@ const DrinkSearchModal = ({
                 }}
               >
                 <Text
-                  style={[styles.selectRowText, selected && styles.selectRowTextActive]}
+                  style={[
+                    styles.selectRowText,
+                    selected && styles.selectRowTextActive,
+                  ]}
                 >
                   {option.label}
                 </Text>
