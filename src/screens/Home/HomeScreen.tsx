@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   KeyboardAvoidingView,
+  Linking,
 } from "react-native";
 import React, {
   useCallback,
@@ -74,6 +75,9 @@ type SummaryTotals = {
 
 const REVIEW_PROMPT_LAST_SHOWN_KEY = "reviewPrompt:lastShownDate";
 const REVIEW_PROMPT_RANDOM_THRESHOLD = 0.25;
+const IOS_REVIEW_URL = "https://apps.apple.com/app/id6761655280?action=write-review";
+const ANDROID_REVIEW_URL =
+  "https://play.google.com/store/apps/details?id=com.somin.drinky";
 
 const balancedMessages = [
   "균형 잡힌 하루에요!",
@@ -618,11 +622,15 @@ const HomeScreen = () => {
     setReviewPromptOpen(false);
 
     try {
-      await StoreReview.requestReview();
+      const reviewUrl =
+        StoreReview.storeUrl() ??
+        (Platform.OS === "ios" ? IOS_REVIEW_URL : ANDROID_REVIEW_URL);
+
+      await Linking.openURL(reviewUrl);
     } catch {
       Toast.show({
         type: "info",
-        text1: "리뷰 요청을 열 수 없어요.",
+        text1: "앱스토어 리뷰 페이지를 열 수 없어요.",
       });
     }
   }, []);
