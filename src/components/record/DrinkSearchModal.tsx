@@ -236,6 +236,7 @@ const DrinkSearchModal = ({
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.categoryRow}
                   keyboardShouldPersistTaps="handled"
+                  ItemSeparatorComponent={CategoryChipSeparator}
                   renderItem={({ item: category }) => {
                     const selected = selectedCategory === category;
                     return (
@@ -311,6 +312,10 @@ const DrinkSearchModal = ({
 };
 
 export default DrinkSearchModal;
+
+function CategoryChipSeparator() {
+  return <View style={styles.categoryChipSeparator} />;
+}
 
 const styles = StyleSheet.create({
   overlay: {
@@ -388,11 +393,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   categoryRow: {
-    gap: 8,
     paddingTop: 4,
     paddingBottom: 6,
     paddingRight: 8,
     paddingLeft: 0,
+  },
+  categoryChipSeparator: {
+    width: 8,
   },
   listSection: {
     flex: 1,
