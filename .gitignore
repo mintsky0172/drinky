@@ -58,6 +58,5 @@ seed/brand/*.json
 marketing/*.png
 marketing/**/*.png
 
-# Drink icons are uploaded to Firebase Storage
-/assets/icons/drinks/**/*.png
- 
+# Local source icons uploaded to Firebase Storage
+/seed/new-icons/
