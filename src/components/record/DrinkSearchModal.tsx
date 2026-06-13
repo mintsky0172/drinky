@@ -1,5 +1,4 @@
 import {
-  ListRenderItemInfo,
   Modal,
   Pressable,
   StyleSheet,
@@ -13,7 +12,7 @@ import { TYPOGRAPHY } from "@/src/constants/typography";
 import TextField from "@/src/components/ui/TextField";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
 import { DRINK_ICONS, DrinkIconKey } from "@/src/constants/icons";
-import { FlashList } from "@shopify/flash-list";
+import { FlashList, type ListRenderItemInfo } from "@shopify/flash-list";
 
 export type SearchableDrinkItem = {
   id: string;
@@ -228,10 +227,6 @@ const DrinkSearchModal = ({
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            initialNumToRender={12}
-            maxToRenderPerBatch={12}
-            windowSize={7}
-            removeClippedSubviews
             ListHeaderComponent={
               <>
                 <FlashList
