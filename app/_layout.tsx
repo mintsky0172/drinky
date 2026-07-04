@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import { useFonts } from "expo-font";
 import * as WebBrowser from "expo-web-browser";
 import AuthProvider from "@/src/providers/AuthProvider";
-import { ImageBackground, StyleSheet } from "react-native";
+import { ImageBackground, Platform, StyleSheet } from "react-native";
 import Toast, { BaseToast, ErrorToast } from "react-native-toast-message";
 import { COLORS } from "@/src/constants/colors";
 
@@ -68,6 +68,7 @@ export default function RootLayout() {
         <Stack
           screenOptions={{
             headerShown: false,
+            animation: Platform.OS === "android" ? "none" : "default",
             contentStyle: { backgroundColor: "transparent" },
           }}
         />
