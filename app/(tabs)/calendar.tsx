@@ -20,7 +20,7 @@ import { db } from "@/src/lib/firebase";
 import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   collection,
   doc,
@@ -28,7 +28,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   View,
@@ -93,6 +93,26 @@ const EMPTY_TOTALS: DayTotals = {
   caffeineMg: 0,
   sugarG: 0,
 };
+
+function toEntryRecord(raw: any): EntryRecord {
+  return {
+    id: raw.id,
+    dateKey: raw.dateKey,
+    drinkName: raw.drinkName ?? "알 수 없는 음료",
+    category: raw.category,
+    totalMl: Number(raw.totalMl ?? 0),
+    totalCaffeineMg: Number(raw.totalCaffeineMg ?? 0),
+    totalSugarG: Number(raw.totalSugarG ?? 0),
+    isWaterOnly: Boolean(raw.isWaterOnly),
+    drinkId: raw.drinkId ?? null,
+    drinkIconKey: raw.drinkIconKey ?? null,
+    iconKey: raw.iconKey ?? null,
+    calendarIconKey: raw.calendarIconKey ?? null,
+    calendarIconUrl: raw.calendarIconUrl ?? null,
+    unit: raw.unit ?? "cup",
+    servings: Number(raw.servings ?? 0),
+  };
+}
 
 function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
   if (typeof raw !== "string") return "default";
@@ -315,9 +335,10 @@ function Calendar() {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (initializing) return;
-    if (!user) {
+  useFocusEffect(
+    useCallback(() => {
+      if (initializing || user) return;
+
       let cancelled = false;
 
       const run = async () => {
@@ -326,23 +347,7 @@ function Calendar() {
 
         const nextMap: Record<string, EntryRecord[]> = {};
         entries.forEach((raw: any) => {
-          const entry: EntryRecord = {
-            id: raw.id,
-            dateKey: raw.dateKey,
-            drinkName: raw.drinkName ?? "알 수 없는 음료",
-            category: raw.category,
-            totalMl: Number(raw.totalMl ?? 0),
-            totalCaffeineMg: Number(raw.totalCaffeineMg ?? 0),
-            totalSugarG: Number(raw.totalSugarG ?? 0),
-            isWaterOnly: Boolean(raw.isWaterOnly),
-            drinkId: raw.drinkId ?? null,
-            drinkIconKey: raw.drinkIconKey ?? null,
-            iconKey: raw.iconKey ?? null,
-            calendarIconKey: raw.calendarIconKey ?? null,
-            calendarIconUrl: raw.calendarIconUrl ?? null,
-            unit: raw.unit ?? "cup",
-            servings: Number(raw.servings ?? 0),
-          };
+          const entry = toEntryRecord(raw);
 
           if (
             entry.dateKey >= monthRange.startKey &&
@@ -363,7 +368,11 @@ function Calendar() {
       return () => {
         cancelled = true;
       };
-    }
+    }, [initializing, monthRange.endKey, monthRange.startKey, user]),
+  );
+
+  useEffect(() => {
+    if (initializing || !user) return;
 
     const entriesRef = collection(db, "users", user.uid, "entries");
     const q = query(
