@@ -10,6 +10,7 @@ import {
   Platform,
   StyleProp,
   KeyboardAvoidingView,
+  BackHandler,
 } from "react-native";
 import type { TextStyle } from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -394,6 +395,64 @@ const RecordCreateScreen = () => {
 
   const [saveDone, setSaveDone] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "android" || isEditMode) return;
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (searchModalOpen) {
+          setSearchModalOpen(false);
+          return true;
+        }
+        if (quickPickOpen) {
+          setQuickPickOpen(false);
+          return true;
+        }
+        if (unitModal) {
+          setUnitModal(false);
+          return true;
+        }
+        if (sizeModal) {
+          setSizeModal(false);
+          return true;
+        }
+        if (datePickerOpen) {
+          setDatePickerOpen(false);
+          return true;
+        }
+        if (timePickerOpen) {
+          setTimePickerOpen(false);
+          return true;
+        }
+        if (saveDone) {
+          setSaveDone(false);
+          router.replace("/(tabs)");
+          return true;
+        }
+        if (saving) {
+          return true;
+        }
+
+        router.replace("/(tabs)");
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [
+    datePickerOpen,
+    isEditMode,
+    quickPickOpen,
+    router,
+    saveDone,
+    saving,
+    searchModalOpen,
+    sizeModal,
+    timePickerOpen,
+    unitModal,
+  ]);
 
   const calendar = require("@/assets/tabs/calendar_inactive.png");
   const clock = require("@/assets/icons/etc/clock.png");
