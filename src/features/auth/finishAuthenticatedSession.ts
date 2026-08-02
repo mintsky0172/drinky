@@ -93,6 +93,7 @@ async function migrateGuestDataToUser(uid: string) {
       totalMl: entry.totalMl,
       totalCaffeineMg: entry.totalCaffeineMg,
       totalSugarG: entry.totalSugarG,
+      calorieKcalPerServing: entry.calorieKcalPerServing ?? 0,
       totalCalorieKcal: entry.totalCalorieKcal ?? 0,
       waterMl: entry.waterMl,
       memo: entry.memo ?? null,

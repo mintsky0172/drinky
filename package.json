@@ -14,6 +14,7 @@
     "seed:recipes:gen": "ts-node seed/generateRecipes.ts",
     "seed:recipes:up": "ts-node seed/uploadRecipes.ts",
     "seed:recipes:order": "ts-node seed/backfillRecipeRegistrationOrder.ts",
+    "entries:calories:recalculate": "ts-node seed/recalculateRecipeEntryCalories.ts",
     "seed:recipes": "npm run seed:recipes:gen && npm run seed:recipes:up",
     "seed:popularity:sync": "ts-node seed/syncRecipePopularity.ts",
     "seed:recipes:validate": "ts-node seed/validateRecipes.ts",

@@ -4,8 +4,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   updateDoc,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { InquiryDoc, ReportDoc } from "@/src/types/admin";
@@ -209,6 +213,64 @@ export async function updateRecipe(
     updatedBy: adminUid,
     source: "admin",
   });
+
+  return recalculateRecipeEntryCalories(
+    recipeId,
+    input.calorieKcalPerServing,
+    input.mlPerServing,
+    adminUid,
+  );
+}
+
+function getServingRatio(
+  entry: Record<string, unknown>,
+  mlPerServing: number,
+) {
+  const servings = Number(entry.servings ?? 0);
+  if (entry.unit === "cup" && Number.isFinite(servings) && servings > 0) {
+    return servings;
+  }
+
+  const totalMl = Number(entry.totalMl ?? 0);
+  if (Number.isFinite(totalMl) && totalMl > 0 && mlPerServing > 0) {
+    return totalMl / mlPerServing;
+  }
+
+  return 0;
+}
+
+async function recalculateRecipeEntryCalories(
+  recipeId: string,
+  calorieKcalPerServing: number,
+  mlPerServing: number,
+  uid: string,
+) {
+  const calories = Math.max(0, Number(calorieKcalPerServing) || 0);
+  const servingMl = Math.max(1, Number(mlPerServing) || 1);
+  const entriesQuery = query(
+    collection(db, "users", uid, "entries"),
+    where("drinkId", "==", recipeId),
+  );
+  const snapshot = await getDocs(entriesQuery);
+
+  for (let i = 0; i < snapshot.docs.length; i += 450) {
+    const batch = writeBatch(db);
+
+    snapshot.docs.slice(i, i + 450).forEach((entryDoc) => {
+      const entry = entryDoc.data() as Record<string, unknown>;
+      const servingRatio = getServingRatio(entry, servingMl);
+
+      batch.update(entryDoc.ref, {
+        calorieKcalPerServing: calories,
+        totalCalorieKcal: Math.round(calories * servingRatio),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    await batch.commit();
+  }
+
+  return snapshot.size;
 }
 
 export async function createRecipe(

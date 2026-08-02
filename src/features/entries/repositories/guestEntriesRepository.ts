@@ -19,6 +19,7 @@ export type GuestEntry = {
   totalMl: number;
   totalCaffeineMg: number;
   totalSugarG: number;
+  calorieKcalPerServing?: number;
   totalCalorieKcal: number;
   waterMl: number;
   consumedAt: string;

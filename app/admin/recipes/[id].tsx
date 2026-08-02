@@ -150,10 +150,16 @@ const RecipeDetailScreen = () => {
   const [category, setCategory] = useState<string>("other");
   const [drinkIconKey, setDrinkIconKey] = useState("");
   const [drinkIconUrl, setDrinkIconUrl] = useState<string | null>(null);
-  const [pendingDrinkIconUri, setPendingDrinkIconUri] = useState<string | null>(null);
+  const [pendingDrinkIconUri, setPendingDrinkIconUri] = useState<string | null>(
+    null,
+  );
   const [calendarIconKey, setCalendarIconKey] = useState("");
-  const [ingredientIconUrl, setIngredientIconUrl] = useState<string | null>(null);
-  const [pendingIngredientIconUri, setPendingIngredientIconUri] = useState<string | null>(null);
+  const [ingredientIconUrl, setIngredientIconUrl] = useState<string | null>(
+    null,
+  );
+  const [pendingIngredientIconUri, setPendingIngredientIconUri] = useState<
+    string | null
+  >(null);
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
@@ -231,12 +237,13 @@ const RecipeDetailScreen = () => {
       return;
     }
 
-    let saveStage: "update" | "drinkIcon" | "ingredientIcon" | "report" = "update";
+    let saveStage: "update" | "drinkIcon" | "ingredientIcon" | "report" =
+      "update";
 
     try {
       setSaving(true);
 
-      await updateRecipe(
+      const recalculatedEntryCount = await updateRecipe(
         id,
         {
           name: name.trim(),
@@ -290,7 +297,13 @@ const RecipeDetailScreen = () => {
         });
       }
 
-      Toast.show({ type: "success", text1: "레시피를 저장했어요" });
+      Toast.show({
+        type: "success",
+        text1:
+          recalculatedEntryCount > 0
+            ? `레시피와 기록 ${recalculatedEntryCount}건을 저장했어요`
+            : "레시피를 저장했어요",
+      });
       setValidationErrors([]);
       setValidationWarnings([]);
       router.back();
@@ -467,6 +480,12 @@ const RecipeDetailScreen = () => {
               onChangeText={setSugarGPerServing}
               keyboardType="decimal-pad"
             />
+            <Input
+              label="칼로리(kcal)"
+              value={calorieKcalPerServing}
+              onChangeText={setCalorieKcalPerServing}
+              keyboardType="decimal-pad"
+            />
           </View>
 
           <View style={styles.sectionCard}>
@@ -518,7 +537,11 @@ const RecipeDetailScreen = () => {
               </AppText>
 
               {validationErrors.map((message) => (
-                <AppText key={message} preset="body" style={styles.validationBoxText}>
+                <AppText
+                  key={message}
+                  preset="body"
+                  style={styles.validationBoxText}
+                >
                   • {message}
                 </AppText>
               ))}
@@ -527,12 +550,19 @@ const RecipeDetailScreen = () => {
 
           {validationWarnings.length > 0 ? (
             <View style={styles.validationBoxWarning}>
-              <AppText preset="caption" style={styles.validationBoxTitleWarning}>
+              <AppText
+                preset="caption"
+                style={styles.validationBoxTitleWarning}
+              >
                 참고하면 좋은 항목
               </AppText>
 
               {validationWarnings.map((message) => (
-                <AppText key={message} preset="body" style={styles.validationBoxText}>
+                <AppText
+                  key={message}
+                  preset="body"
+                  style={styles.validationBoxText}
+                >
                   • {message}
                 </AppText>
               ))}

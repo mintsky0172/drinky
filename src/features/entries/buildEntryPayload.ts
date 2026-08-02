@@ -91,6 +91,7 @@ export default function buildEntryPayload(
     totalMl,
     totalCaffeineMg: Math.max(0, totalCaffeineMg),
     totalSugarG: Math.max(0, totalSugarG),
+    calorieKcalPerServing: caloriePerServing,
     totalCalorieKcal: Math.max(0, totalCalorieKcal),
     waterMl: isWaterOnly ? totalMl : 0,
     memo: rawMemo || null,

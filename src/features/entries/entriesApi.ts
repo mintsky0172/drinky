@@ -57,6 +57,7 @@ function toGuestEntry(entry: EntryWritePayload): GuestEntry {
     totalMl: entry.totalMl,
     totalCaffeineMg: entry.totalCaffeineMg,
     totalSugarG: entry.totalSugarG,
+    calorieKcalPerServing: entry.calorieKcalPerServing,
     totalCalorieKcal: entry.totalCalorieKcal,
     waterMl: entry.waterMl,
     consumedAt: serializeDateLike(entry.consumedAt),
