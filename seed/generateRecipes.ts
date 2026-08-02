@@ -58,6 +58,7 @@ type RecipeSeed = {
   mlPerServing: number;
   caffeineMgPerServing: number;
   sugarGPerServing: number;
+  calorieKcalPerServing: number;
   isWaterOnly: boolean;
 
   // 검색 풍성함 핵심
@@ -185,6 +186,48 @@ function baseKeywords(base: string) {
   return map[base] ?? [base];
 }
 
+// 브랜드별 수치가 없는 초기 시드용 1회 제공량 열량 추정치다.
+function estimateCalories(category: Category, name: string, sugar: number) {
+  if (category === "water") return 0;
+
+  if (category === "ade") return sugar * 4 + 10;
+  if (category === "carbonated") {
+    if (name.includes("제로") || name === "탄산수") return 0;
+    return sugar * 4;
+  }
+  if (category === "coffee") return sugar === 0 ? (name === "에스프레소" ? 3 : 5) : sugar * 5;
+  if (category === "energy") return name.includes("제로") ? 10 : sugar * 4 + 7;
+  if (category === "juice") return name.includes("토마토") ? 50 : sugar * 4 + 17;
+  if (category === "smoothie") return 250;
+
+  if (category === "milk") {
+    if (name === "우유") return 150;
+    if (name === "저지방 우유") return 110;
+    if (name === "두유") return 120;
+    if (name === "초코우유") return 190;
+    if (name === "딸기우유") return 180;
+    if (name === "바나나우유") return 210;
+  }
+
+  if (category === "tea") {
+    if (sugar === 0) return 0;
+    if (name.includes("흑당 밀크티")) return 280;
+    if (name.includes("말차 라떼")) return 210;
+    if (name.includes("밀크티")) return 220;
+    return 80;
+  }
+
+  if (category === "latte") {
+    if (name.includes("카페모카")) return sugar === 18 ? 260 : sugar === 28 ? 290 : 300;
+    if (name.includes("마끼아또")) return 230;
+    if (name.includes("카푸치노")) return sugar >= 18 ? 190 : 150;
+    if (name.includes("플랫화이트")) return 160;
+    if (name.includes("카페라떼")) return sugar === 8 ? 180 : sugar === 18 ? 190 : 210;
+  }
+
+  return sugar * 4;
+}
+
 function buildRecipe(params: {
   name: string;
   category: Category;
@@ -193,6 +236,7 @@ function buildRecipe(params: {
   ml: number;
   caffeine: number;
   sugar: number;
+  calorie?: number;
   isWaterOnly?: boolean;
   aliases?: string[];
   keywords?: string[];
@@ -221,6 +265,10 @@ function buildRecipe(params: {
     mlPerServing: params.ml,
     caffeineMgPerServing: Math.max(0, Math.round(params.caffeine)),
     sugarGPerServing: Math.max(0, Math.round(params.sugar)),
+    calorieKcalPerServing: Math.max(
+      0,
+      Math.round(params.calorie ?? estimateCalories(params.category, name, params.sugar)),
+    ),
     isWaterOnly: !!params.isWaterOnly,
 
     normalizedName: normalizeKorean(name),

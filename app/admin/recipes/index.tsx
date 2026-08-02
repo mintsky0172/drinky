@@ -31,13 +31,15 @@ type RecipeItem = {
   category?: string;
   isPublic?: boolean;
   updatedAt?: any;
+  createdAt?: any;
+  registrationOrder?: number;
   drinkIconKey?: DrinkIconKey;
   iconUrl?: string | null;
 };
 
 type VisibilityFilter = "all" | "public" | "hidden";
 
-type SortOption = "name" | "brand" | "category" | "updatedAt";
+type SortOption = "name" | "brand" | "category" | "createdAtNew" | "createdAtOld";
 
 const CATEGORY_OPTIONS = [
   "전체",
@@ -103,7 +105,8 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "name", label: "이름순" },
   { key: "brand", label: "브랜드순" },
   { key: "category", label: "카테고리순" },
-  { key: "updatedAt", label: "최근 수정순" },
+  { key: "createdAtNew", label: "최근 등록순" },
+  { key: "createdAtOld", label: "오래된 등록순"}
 ];
 
 function getCategoryLabel(category?: string) {
@@ -114,6 +117,31 @@ function getCategoryLabel(category?: string) {
 function getBrandLabel(brand?: string) {
   if (!brand) return "공통";
   return BRAND_LABEL_MAP[brand] ?? brand;
+}
+
+function getCreatedAtMs(createdAt: unknown) {
+  if (typeof (createdAt as { toMillis?: unknown })?.toMillis === "function") {
+    return (createdAt as { toMillis: () => number }).toMillis();
+  }
+
+  if (typeof (createdAt as { toDate?: unknown })?.toDate === "function") {
+    return (createdAt as { toDate: () => Date }).toDate().getTime();
+  }
+
+  if (createdAt instanceof Date) return createdAt.getTime();
+  if (typeof createdAt === "number") return createdAt;
+  if (typeof createdAt === "string") {
+    const parsed = Date.parse(createdAt);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  return 0;
+}
+
+function getRegistrationOrder(registrationOrder: unknown) {
+  return typeof registrationOrder === "number" && Number.isFinite(registrationOrder)
+    ? registrationOrder
+    : Number.MAX_SAFE_INTEGER;
 }
 
 const VISIBILITY_OPTIONS: { key: VisibilityFilter; label: string }[] = [
@@ -182,7 +210,9 @@ const AdminRecipesScreen = () => {
           brand: data.brand ?? "",
           category: data.category ?? "",
           isPublic: data.isPublic ?? true,
+          createdAt: data.createdAt,
           updatedAt: data.updatedAt,
+          registrationOrder: data.registrationOrder,
           drinkIconKey: data.drinkIconKey ?? "default",
           iconUrl: data.iconUrl ?? null,
         };
@@ -226,10 +256,19 @@ const AdminRecipesScreen = () => {
           return (a.brand ?? "").localeCompare(b.brand ?? "", "ko");
         case "category":
           return (a.category ?? "").localeCompare(b.category ?? "", "ko");
-        case "updatedAt": {
-          const aTime = a.updatedAt?.toDate?.()?.getTime?.() ?? 0;
-          const bTime = b.updatedAt?.toDate?.()?.getTime?.() ?? 0;
-          return bTime - aTime;
+        case "createdAtNew": {
+          const timeDiff = getCreatedAtMs(b.createdAt) - getCreatedAtMs(a.createdAt);
+          const orderDiff =
+            getRegistrationOrder(b.registrationOrder) -
+            getRegistrationOrder(a.registrationOrder);
+          return timeDiff || orderDiff || a.name.localeCompare(b.name, "ko");
+        }
+        case "createdAtOld": {
+          const timeDiff = getCreatedAtMs(a.createdAt) - getCreatedAtMs(b.createdAt);
+          const orderDiff =
+            getRegistrationOrder(a.registrationOrder) -
+            getRegistrationOrder(b.registrationOrder);
+          return timeDiff || orderDiff || a.name.localeCompare(b.name, "ko");
         }
         case "name":
         default:

@@ -33,12 +33,13 @@ async function commitInChunks(docs: RecipeSeed[], chunkSize = 450) {
     const chunk = docs.slice(i, i + chunkSize);
     const batch = db.batch();
 
-    chunk.forEach((recipe) => {
+    chunk.forEach((recipe, index) => {
       const ref = db.collection("recipes").doc(recipe.id);
       batch.set(
         ref,
         {
           ...recipe,
+          registrationOrder: recipe.registrationOrder ?? i + index,
           updatedAt: FieldValue.serverTimestamp(),
           createdAt: FieldValue.serverTimestamp(),
           isPublic: true,
