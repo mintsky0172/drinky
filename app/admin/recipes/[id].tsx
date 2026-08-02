@@ -157,6 +157,7 @@ const RecipeDetailScreen = () => {
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
+  const [calorieKcalPerServing, setCalorieKcalPerServing] = useState("");
   const [isWaterOnly, setIsWaterOnly] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
 
@@ -190,6 +191,7 @@ const RecipeDetailScreen = () => {
       setMlPerServing(String(recipe.mlPerServing ?? ""));
       setCaffeineMgPerServing(String(recipe.caffeineMgPerServing ?? ""));
       setSugarGPerServing(String(recipe.sugarGPerServing ?? ""));
+      setCalorieKcalPerServing(String(recipe.calorieKcalPerServing ?? ""));
       setIsWaterOnly(Boolean(recipe.isWaterOnly));
       setIsPublic(recipe.isPublic !== false);
 
@@ -245,6 +247,7 @@ const RecipeDetailScreen = () => {
           mlPerServing: Number(mlPerServing || 0),
           caffeineMgPerServing: Number(caffeineMgPerServing || 0),
           sugarGPerServing: Number(sugarGPerServing || 0),
+          calorieKcalPerServing: Number(calorieKcalPerServing || 0),
           isWaterOnly,
           isPublic,
           normalizedName: name.replace(/\s/g, ""),

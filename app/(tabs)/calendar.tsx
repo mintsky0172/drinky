@@ -52,6 +52,7 @@ type EntryRecord = {
   totalMl?: number;
   totalCaffeineMg: number;
   totalSugarG: number;
+  totalCalorieKcal: number;
   isWaterOnly: boolean;
   drinkId?: string | null;
   drinkIconKey?: string | null;
@@ -74,6 +75,7 @@ type DayTotals = {
   waterMl: number;
   caffeineMg: number;
   sugarG: number;
+  calorieKcal: number;
 };
 
 type DaySummaryRecord = {
@@ -92,6 +94,7 @@ const EMPTY_TOTALS: DayTotals = {
   waterMl: 0,
   caffeineMg: 0,
   sugarG: 0,
+  calorieKcal: 0,
 };
 
 function toEntryRecord(raw: any): EntryRecord {
@@ -103,6 +106,7 @@ function toEntryRecord(raw: any): EntryRecord {
     totalMl: Number(raw.totalMl ?? 0),
     totalCaffeineMg: Number(raw.totalCaffeineMg ?? 0),
     totalSugarG: Number(raw.totalSugarG ?? 0),
+    totalCalorieKcal: Number(raw.totalCalorieKcal ?? 0),
     isWaterOnly: Boolean(raw.isWaterOnly),
     drinkId: raw.drinkId ?? null,
     drinkIconKey: raw.drinkIconKey ?? null,
@@ -396,6 +400,7 @@ function Calendar() {
             totalMl: Number(data.totalMl ?? 0),
             totalCaffeineMg: Number(data.totalCaffeineMg ?? 0),
             totalSugarG: Number(data.totalSugarG ?? 0),
+            totalCalorieKcal: Number(data.totalCalorieKcal ?? 0),
             isWaterOnly: Boolean(data.isWaterOnly),
             drinkId: data.drinkId ?? null,
             drinkIconKey: data.drinkIconKey ?? null,
@@ -450,6 +455,7 @@ function Calendar() {
           waterMl: userGoals?.waterMl ?? DEFAULT_GOALS.waterMl,
           caffeineMg: userGoals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
           sugarG: userGoals?.sugarG ?? DEFAULT_GOALS.sugarG,
+          calorieKcal: userGoals?.calorieKcal ?? DEFAULT_GOALS.calorieKcal,
         });
       },
       () => {
@@ -534,11 +540,13 @@ function Calendar() {
       const ml = Number(entry.totalMl ?? 0);
       const caffeine = Number(entry.totalCaffeineMg ?? 0);
       const sugar = Number(entry.totalSugarG ?? 0);
+      const calorie = Number(entry.totalCalorieKcal ?? 0);
 
       return {
         waterMl: acc.waterMl + (entry.isWaterOnly ? ml : 0),
         caffeineMg: acc.caffeineMg + caffeine,
         sugarG: acc.sugarG + sugar,
+        calorieKcal: acc.calorieKcal + calorie,
       };
     }, EMPTY_TOTALS);
   }, [selectedEntries]);
@@ -554,11 +562,13 @@ function Calendar() {
         const ml = Number(entry.totalMl ?? 0);
         const caffeine = Number(entry.totalCaffeineMg ?? 0);
         const sugar = Number(entry.totalSugarG ?? 0);
+        const calorie = Number(entry.totalCalorieKcal ?? 0);
 
         acc.entryCount += 1;
         acc.waterMl += entry.isWaterOnly ? ml : 0;
         acc.caffeineMg += caffeine;
         acc.sugarG += sugar;
+        acc.calorieKcal += calorie;
 
         return acc;
       },
@@ -567,6 +577,7 @@ function Calendar() {
         waterMl: 0,
         caffeineMg: 0,
         sugarG: 0,
+        calorieKcal: 0,
       },
     );
 
@@ -578,6 +589,7 @@ function Calendar() {
       avgWaterMl: Math.round(totals.waterMl / divisor),
       avgCaffeineMg: Math.round(totals.caffeineMg / divisor),
       avgSugarG: Math.round(totals.sugarG / divisor),
+      avgCalorieKcal: Math.round(totals.calorieKcal / divisor),
     };
   }, [entriesByDateKey]);
 

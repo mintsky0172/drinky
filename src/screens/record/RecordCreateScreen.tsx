@@ -57,6 +57,7 @@ type Item = {
   mlPerServing?: number;
   caffeineMgPerServing?: number;
   sugarGPerServing?: number;
+  calorieKcalPerServing?: number;
   isWaterOnly?: boolean;
   createdAtMs?: number;
   popularityScore?: number;
@@ -489,6 +490,8 @@ const RecordCreateScreen = () => {
           mlPerServing: data.mlPerServing as number | undefined,
           caffeineMgPerServing: data.caffeineMgPerServing as number | undefined,
           sugarGPerServing: data.sugarGPerServing as number | undefined,
+          calorieKcalPerServing:
+            data.calorieKcalPerServing as number | undefined,
           isWaterOnly: data.isWaterOnly as boolean | undefined,
           createdAtMs:
             typeof (data.createdAt as any)?.toMillis === "function"
@@ -729,6 +732,7 @@ const RecordCreateScreen = () => {
         mlPerServing: matched?.mlPerServing,
         caffeineMgPerServing: matched?.caffeineMgPerServing,
         sugarGPerServing: matched?.sugarGPerServing,
+        calorieKcalPerServing: matched?.calorieKcalPerServing,
         isWaterOnly,
       };
     };
@@ -803,6 +807,7 @@ const RecordCreateScreen = () => {
         mlPerServing: picked.mlPerServing,
         caffeineMgPerServing: picked.caffeineMgPerServing,
         sugarGPerServing: picked.sugarGPerServing,
+        calorieKcalPerServing: picked.calorieKcalPerServing,
         isWaterOnly: picked.isWaterOnly,
 
         date,

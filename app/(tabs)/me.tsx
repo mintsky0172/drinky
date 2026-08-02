@@ -113,6 +113,7 @@ function Me() {
           waterMl: data.goals?.waterMl ?? DEFAULT_GOALS.waterMl,
           caffeineMg: data.goals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
           sugarG: data.goals?.sugarG ?? DEFAULT_GOALS.sugarG,
+          calorieKcal: data.goals?.calorieKcal ?? DEFAULT_GOALS.calorieKcal,
         };
         setGoals(nextGoals);
       } else {

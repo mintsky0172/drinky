@@ -33,7 +33,9 @@ function isDefaultGoals(goals: Partial<UserGoals> | undefined) {
     Number(goals.waterMl ?? DEFAULT_GOALS.waterMl) === DEFAULT_GOALS.waterMl &&
     Number(goals.caffeineMg ?? DEFAULT_GOALS.caffeineMg) ===
       DEFAULT_GOALS.caffeineMg &&
-    Number(goals.sugarG ?? DEFAULT_GOALS.sugarG) === DEFAULT_GOALS.sugarG
+    Number(goals.sugarG ?? DEFAULT_GOALS.sugarG) === DEFAULT_GOALS.sugarG &&
+    Number(goals.calorieKcal ?? DEFAULT_GOALS.calorieKcal) ===
+      DEFAULT_GOALS.calorieKcal
   );
 }
 
@@ -91,6 +93,7 @@ async function migrateGuestDataToUser(uid: string) {
       totalMl: entry.totalMl,
       totalCaffeineMg: entry.totalCaffeineMg,
       totalSugarG: entry.totalSugarG,
+      totalCalorieKcal: entry.totalCalorieKcal ?? 0,
       waterMl: entry.waterMl,
       memo: entry.memo ?? null,
     });

@@ -56,10 +56,10 @@ import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRep
 import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 
 type SummaryCard = {
-  label: "수분💧" | "카페인☕️" | "당류🍭";
+  label: "수분💧" | "카페인☕️" | "당류🍭" | "열량🔥";
   value: string;
   status: VariantLevelLabel;
-  variant: "water" | "caffeine" | "sugar";
+  variant: "water" | "caffeine" | "sugar" | "calorie";
 };
 
 type TodayDrinkItem = {
@@ -71,11 +71,13 @@ type SummaryTotals = {
   waterMl: number;
   caffeineMg: number;
   sugarG: number;
+  calorieKcal: number;
 };
 
 const REVIEW_PROMPT_LAST_SHOWN_KEY = "reviewPrompt:lastShownDate";
 const REVIEW_PROMPT_RANDOM_THRESHOLD = 0.25;
-const IOS_REVIEW_URL = "https://apps.apple.com/app/id6761655280?action=write-review";
+const IOS_REVIEW_URL =
+  "https://apps.apple.com/app/id6761655280?action=write-review";
 const ANDROID_REVIEW_URL =
   "https://play.google.com/store/apps/details?id=com.somin.drinky";
 
@@ -87,7 +89,7 @@ const balancedMessages = [
 ];
 
 const NUTRITION_TOOLTIP_TEXT =
-  "수분은 순수 물 및 일부 차 종류로만 계산되며, 카페인과 당은 기록한 음료의 일반적인 레시피 기준으로 합산돼요. 목표 수치는 마이페이지에서 바꿀 수 있어요.\n\n* 수분과 달리 카페인과 당류는 부족해도 괜찮아요.\n* 수분 섭취로 인정되는 차 : 보리차, 루이보스 차, 히비스커스 차, 비트차, 현미차, 옥수수차";
+  "수분은 순수 물 및 일부 차 종류로만 계산되며, 카페인과 당, 열량은 기록한 음료의 일반적인 레시피 기준으로 합산돼요. 목표 수치는 마이페이지에서 바꿀 수 있어요.\n\n* 수분과 달리 카페인, 당, 열량은 부족해도 괜찮아요.\n* 수분 섭취로 인정되는 차 : 보리차, 루이보스 차, 히비스커스 차, 비트차, 현미차, 옥수수차";
 
 type VariantLevelLabel = "조금 적음" | "적절" | "조금 많음";
 
@@ -168,11 +170,12 @@ function pickSummaryText(levels: {
   water: VariantLevelLabel;
   caffeine: VariantLevelLabel;
   sugar: VariantLevelLabel;
+  calorie: VariantLevelLabel;
 }) {
-  const { water: w, caffeine: c, sugar: s } = levels;
+  const { water: w, caffeine: c, sugar: s, calorie: cal } = levels;
 
   // 완전 균형
-  if (w === "적절" && c === "적절" && s === "적절") {
+  if (w === "적절" && c === "적절" && s === "적절" && cal === "적절") {
     return "균형 잡힌 하루에요!";
   }
 
@@ -183,6 +186,8 @@ function pickSummaryText(levels: {
     return "오늘은 카페인이 조금 많았어요. 다음 음료는 디카페인 어때요?";
   if (s === "조금 많음")
     return "오늘은 당이 조금 많았어요. 다음 음료는 덜 달게 어때요?";
+  if (cal === "조금 많음")
+    return "오늘은 열량이 조금 많았어요. 다음 음료는 더 가볍게 어때요?";
 
   // 수분 부족
   if (w === "조금 적음") return "오늘은 물이 조금 부족해요. 한 잔만 더!";
@@ -206,6 +211,7 @@ function buildOverviewFromEntries(entries: any[]) {
     waterMl: 0,
     caffeineMg: 0,
     sugarG: 0,
+    calorieKcal: 0,
   };
   const iconScores = new Map<
     string,
@@ -232,6 +238,7 @@ function buildOverviewFromEntries(entries: any[]) {
       waterMl: nextTotals.waterMl + (e.isWaterOnly ? totalMl : 0),
       caffeineMg: nextTotals.caffeineMg + Number(e.totalCaffeineMg ?? 0),
       sugarG: nextTotals.sugarG + Number(e.totalSugarG ?? 0),
+      calorieKcal: nextTotals.calorieKcal + Number(e.totalCalorieKcal ?? 0),
     };
 
     const iconKey = inferIngredientIconFromEntry(e);
@@ -264,11 +271,14 @@ function buildOverviewFromEntries(entries: any[]) {
       waterMl: Math.max(0, Math.round(nextTotals.waterMl)),
       caffeineMg: Math.max(0, Math.round(nextTotals.caffeineMg)),
       sugarG: Math.max(0, Math.round(nextTotals.sugarG)),
+      calorieKcal: Math.max(0, Math.round(nextTotals.calorieKcal)),
     },
     todayDrinks: Array.from(byDrink.values()).map((d) => ({
       name: d.name,
       servingsText:
-        d.unit === "cup" ? `${Math.round(d.servings)}잔` : `${Math.round(d.totalMl)}mL`,
+        d.unit === "cup"
+          ? `${Math.round(d.servings)}잔`
+          : `${Math.round(d.totalMl)}mL`,
     })),
     topIconKey,
     topIconUrl,
@@ -301,6 +311,7 @@ const HomeScreen = () => {
     waterMl: 0,
     caffeineMg: 0,
     sugarG: 0,
+    calorieKcal: 0,
   });
 
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
@@ -327,6 +338,12 @@ const HomeScreen = () => {
         status: getLevelOptional(totals.sugarG, goals.sugarG),
         variant: "sugar",
       },
+      {
+        label: "열량🔥",
+        value: `${totals.calorieKcal.toLocaleString()}kcal`,
+        status: getLevelOptional(totals.calorieKcal, goals.calorieKcal),
+        variant: "calorie",
+      },
     ],
     [goals, totals],
   );
@@ -335,9 +352,13 @@ const HomeScreen = () => {
     const waterLevel = getLevelWater(totals.waterMl, goals.waterMl);
     const caffeineLevel = getLevelOptional(totals.caffeineMg, goals.caffeineMg);
     const sugarLevel = getLevelOptional(totals.sugarG, goals.sugarG);
+    const calorieLevel = getLevelOptional(totals.calorieKcal, goals.calorieKcal);
 
     return (
-      waterLevel === "적절" && caffeineLevel === "적절" && sugarLevel === "적절"
+      waterLevel === "적절" &&
+      caffeineLevel === "적절" &&
+      sugarLevel === "적절" &&
+      calorieLevel === "적절"
     );
   }, [totals, goals]);
 
@@ -367,6 +388,7 @@ const HomeScreen = () => {
         water: getLevelWater(totals.waterMl, goals.waterMl),
         caffeine: getLevelOptional(totals.caffeineMg, goals.caffeineMg),
         sugar: getLevelOptional(totals.sugarG, goals.sugarG),
+        calorie: getLevelOptional(totals.calorieKcal, goals.calorieKcal),
       }),
     [totals, goals],
   );
@@ -452,17 +474,29 @@ const HomeScreen = () => {
       userRef,
       (snap) => {
         const userData = snap.data() as
-          | { goals?: { waterMl?: number; caffeineMg?: number; sugarG?: number } }
+          | {
+              goals?: {
+                waterMl?: number;
+                caffeineMg?: number;
+                sugarG?: number;
+              };
+            }
           | undefined;
 
         const userGoals = userData?.goals as
-          | { waterMl?: number; caffeineMg?: number; sugarG?: number }
+          | {
+              waterMl?: number;
+              caffeineMg?: number;
+              sugarG?: number;
+              calorieKcal?: number;
+            }
           | undefined;
 
         setGoals({
           waterMl: userGoals?.waterMl ?? DEFAULT_GOALS.waterMl,
           caffeineMg: userGoals?.caffeineMg ?? DEFAULT_GOALS.caffeineMg,
           sugarG: userGoals?.sugarG ?? DEFAULT_GOALS.sugarG,
+          calorieKcal: userGoals?.calorieKcal ?? DEFAULT_GOALS.calorieKcal,
         });
       },
       () => {
@@ -530,7 +564,7 @@ const HomeScreen = () => {
       () => {
         // entries 구독 실패 시 초기화
         setTodayDrinks([]);
-        setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0 });
+        setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0, calorieKcal: 0 });
         setTopIconKey(null);
         setTopIconUrl(null);
       },
@@ -772,7 +806,8 @@ const HomeScreen = () => {
               </Pressable>
               <View style={styles.dateCenter}>
                 <Text style={styles.dateText}>
-                  {todayLabel} <Text style={styles.dayText}>{todayWeekday}</Text>
+                  {todayLabel}{" "}
+                  <Text style={styles.dayText}>{todayWeekday}</Text>
                 </Text>
               </View>
               <Pressable
@@ -789,199 +824,202 @@ const HomeScreen = () => {
             </View>
           </View>
           {/* 오늘의 음료 목록 */}
-        <Text style={styles.sectionTitle}>오늘 마신 음료</Text>
-        <View style={styles.listCard}>
-          {todayDrinks.length ? (
-            todayDrinks.map((d, idx) => (
-              <Text key={`${d.name}-${idx}`} style={styles.bulletItem}>
-                • {d.name} {d.servingsText}
-              </Text>
-            ))
-          ) : (
-            <Text style={styles.bulletItem}>• 아직 기록한 음료가 없어요</Text>
-          )}
-        </View>
-        {/* 요약 타이틀 + 정보 */}
-        <View style={styles.summaryHeaderRow}>
-          <Text style={styles.summaryHeaderTitle}>
-            오늘의 수분/카페인/당 섭취량
-          </Text>
-
-          <View style={styles.tooltipAnchor}>
-            <Pressable
-              hitSlop={8}
-              onPress={() => {
-                setNutritionToolTipOpen(true);
-              }}
-            >
-              <Ionicons
-                name="help-circle-outline"
-                size={18}
-                color={COLORS.semantic.textSecondary}
-              />
-            </Pressable>
-
-            {nutritionToolTipOpen ? (
-              <View style={styles.tooltipBubble}>
-                <View style={styles.tooltipArrow} />
-
-                <View style={styles.tooltipBubbleHeader}>
-                  <AppText style={styles.tooltipBubbleTitle}>
-                    수분/카페인/당 계산 기준
-                  </AppText>
-
-                  <Pressable
-                    hitSlop={8}
-                    onPress={() => setNutritionToolTipOpen(false)}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={16}
-                      color={COLORS.semantic.textPrimary}
-                    />
-                  </Pressable>
-                </View>
-
-                <AppText style={styles.tooltipBubbleText}>
-                  {NUTRITION_TOOLTIP_TEXT}
-                </AppText>
-              </View>
-            ) : null}
+          <Text style={styles.sectionTitle}>오늘 마신 음료</Text>
+          <View style={styles.listCard}>
+            {todayDrinks.length ? (
+              todayDrinks.map((d, idx) => (
+                <Text key={`${d.name}-${idx}`} style={styles.bulletItem}>
+                  • {d.name} {d.servingsText}
+                </Text>
+              ))
+            ) : (
+              <Text style={styles.bulletItem}>• 아직 기록한 음료가 없어요</Text>
+            )}
           </View>
-        </View>
-        {/* 수분/카페인/당 카드 */}
-        <View style={styles.cardRow}>
-          {cards.map((c) => (
-            <View
-              key={c.variant}
-              style={[styles.miniCard, miniCardVariant(c.status)]}
-            >
-              <Text style={styles.miniCardLabel}>{c.label}</Text>
-              <Text style={styles.miniCardValue}>{c.value}</Text>
-              <Text
-                style={[styles.miniCardStatus, miniCardStatusVariant(c.status)]}
+          {/* 요약 타이틀 + 정보 */}
+          <View style={styles.summaryHeaderRow}>
+            <Text style={styles.summaryHeaderTitle}>
+              오늘의 수분/카페인/당/칼로리{"\n"}섭취량
+            </Text>
+
+            <View style={styles.tooltipAnchor}>
+              <Pressable
+                hitSlop={8}
+                onPress={() => {
+                  setNutritionToolTipOpen(true);
+                }}
               >
-                {c.status}
-              </Text>
+                <Ionicons
+                  name="help-circle-outline"
+                  size={18}
+                  color={COLORS.semantic.textSecondary}
+                />
+              </Pressable>
+
+              {nutritionToolTipOpen ? (
+                <View style={styles.tooltipBubble}>
+                  <View style={styles.tooltipArrow} />
+
+                  <View style={styles.tooltipBubbleHeader}>
+                    <AppText style={styles.tooltipBubbleTitle}>
+                      수분/카페인/당/칼로리 계산 기준
+                    </AppText>
+
+                    <Pressable
+                      hitSlop={8}
+                      onPress={() => setNutritionToolTipOpen(false)}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={16}
+                        color={COLORS.semantic.textPrimary}
+                      />
+                    </Pressable>
+                  </View>
+
+                  <AppText style={styles.tooltipBubbleText}>
+                    {NUTRITION_TOOLTIP_TEXT}
+                  </AppText>
+                </View>
+              ) : null}
             </View>
-          ))}
-        </View>
-        {/* 오늘의 요약 */}
-        <Text style={styles.statusLine}>{summaryText}</Text>
-        {/* 오늘의 한줄 */}
-        <TodayMemoCard
-          icon={
-            <IngredientIcon
-              iconKey={todayIconKey}
-              iconUrl={todayIconUrl}
-              size={32}
+          </View>
+          {/* 수분/카페인/당/칼로리 카드 */}
+          <View style={styles.cardRow}>
+            {cards.map((c) => (
+              <View
+                key={c.variant}
+                style={[styles.miniCard, miniCardVariant(c.status)]}
+              >
+                <Text style={styles.miniCardLabel}>{c.label}</Text>
+                <Text style={styles.miniCardValue}>{c.value}</Text>
+                <Text
+                  style={[
+                    styles.miniCardStatus,
+                    miniCardStatusVariant(c.status),
+                  ]}
+                >
+                  {c.status}
+                </Text>
+              </View>
+            ))}
+          </View>
+          {/* 오늘의 요약 */}
+          <Text style={styles.statusLine}>{summaryText}</Text>
+          {/* 오늘의 한줄 */}
+          <TodayMemoCard
+            icon={
+              <IngredientIcon
+                iconKey={todayIconKey}
+                iconUrl={todayIconUrl}
+                size={32}
+              />
+            }
+            oneLine={todayOneLine}
+            onPressIcon={() => setIconPickerOpen(true)}
+            onChangeOneLine={handleChangeOneLine}
+            onSubmitOneLine={handleSubmitOneLine}
+            onFocusOneLine={handleFocusOneLine}
+          />
+          <IconPickerModal
+            visible={iconPickerOpen}
+            type="ingredient"
+            selectedKey={todayIconKey}
+            onSelect={handleSelectIcon}
+            onClose={() => setIconPickerOpen(false)}
+            onResetToDefault={handleResetIcon}
+          />
+          {datePickerOpen && Platform.OS === "ios" ? (
+            <Modal
+              transparent
+              visible={datePickerOpen}
+              animationType="fade"
+              onRequestClose={() => setDatePickerOpen(false)}
+            >
+              <Pressable
+                style={styles.modalOverlay}
+                onPress={() => setDatePickerOpen(false)}
+              />
+              <View style={styles.pickerCard}>
+                <Text style={styles.modalTitle}>날짜 선택</Text>
+                <View style={styles.pickerWrap}>
+                  <DateTimePicker
+                    value={selectedDate}
+                    mode="date"
+                    display="spinner"
+                    style={styles.picker}
+                    onChange={(_, pickedDate) => {
+                      if (pickedDate) setSelectedDate(pickedDate);
+                    }}
+                  />
+                </View>
+                <AppButton
+                  label="완료"
+                  variant="primary"
+                  onPress={() => setDatePickerOpen(false)}
+                />
+              </View>
+            </Modal>
+          ) : null}
+          {datePickerOpen && Platform.OS !== "ios" ? (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              onChange={(_, pickedDate) => {
+                setDatePickerOpen(false);
+                if (pickedDate) setSelectedDate(pickedDate);
+              }}
             />
-          }
-          oneLine={todayOneLine}
-          onPressIcon={() => setIconPickerOpen(true)}
-          onChangeOneLine={handleChangeOneLine}
-          onSubmitOneLine={handleSubmitOneLine}
-          onFocusOneLine={handleFocusOneLine}
-        />
-        <IconPickerModal
-          visible={iconPickerOpen}
-          type="ingredient"
-          selectedKey={todayIconKey}
-          onSelect={handleSelectIcon}
-          onClose={() => setIconPickerOpen(false)}
-          onResetToDefault={handleResetIcon}
-        />
-        {datePickerOpen && Platform.OS === "ios" ? (
+          ) : null}
           <Modal
             transparent
-            visible={datePickerOpen}
+            visible={reviewPromptOpen}
             animationType="fade"
-            onRequestClose={() => setDatePickerOpen(false)}
+            onRequestClose={handleCloseReviewPrompt}
           >
             <Pressable
               style={styles.modalOverlay}
-              onPress={() => setDatePickerOpen(false)}
+              onPress={handleCloseReviewPrompt}
             />
-            <View style={styles.pickerCard}>
-              <Text style={styles.modalTitle}>날짜 선택</Text>
-              <View style={styles.pickerWrap}>
-                <DateTimePicker
-                  value={selectedDate}
-                  mode="date"
-                  display="spinner"
-                  style={styles.picker}
-                  onChange={(_, pickedDate) => {
-                    if (pickedDate) setSelectedDate(pickedDate);
-                  }}
-                />
+            <View style={styles.reviewPromptCard}>
+              <AppText style={styles.reviewPromptEyebrow}>
+                REVIEW REQUEST
+              </AppText>
+              <AppText style={styles.reviewPromptTitle}>
+                Drinky가 도움이 되고 있나요?
+              </AppText>
+              <AppText style={styles.reviewPromptDescription}>
+                앱스토어에 리뷰를 남겨주시면 큰 도움이 돼요.
+              </AppText>
+              <View style={styles.reviewPromptActions}>
+                <Pressable
+                  style={styles.reviewPromptSecondaryButton}
+                  onPress={handleCloseReviewPrompt}
+                >
+                  <AppText style={styles.reviewPromptSecondaryLabel}>
+                    다음에
+                  </AppText>
+                </Pressable>
+                <Pressable
+                  style={styles.reviewPromptPrimaryButton}
+                  onPress={handlePressReview}
+                >
+                  <AppText style={styles.reviewPromptPrimaryLabel}>
+                    리뷰 남기기
+                  </AppText>
+                </Pressable>
               </View>
-              <AppButton
-                label="완료"
-                variant="primary"
-                onPress={() => setDatePickerOpen(false)}
-              />
             </View>
           </Modal>
-        ) : null}
-        {datePickerOpen && Platform.OS !== "ios" ? (
-          <DateTimePicker
-            value={selectedDate}
-            mode="date"
-            display="default"
-            onChange={(_, pickedDate) => {
-              setDatePickerOpen(false);
-              if (pickedDate) setSelectedDate(pickedDate);
-            }}
-          />
-        ) : null}
-        <Modal
-          transparent
-          visible={reviewPromptOpen}
-          animationType="fade"
-          onRequestClose={handleCloseReviewPrompt}
-        >
-          <Pressable
-            style={styles.modalOverlay}
-            onPress={handleCloseReviewPrompt}
-          />
-          <View style={styles.reviewPromptCard}>
-            <AppText style={styles.reviewPromptEyebrow}>
-              REVIEW REQUEST
-            </AppText>
-            <AppText style={styles.reviewPromptTitle}>
-              Drinky가 도움이 되고 있나요?
-            </AppText>
-            <AppText style={styles.reviewPromptDescription}>
-              앱스토어에 리뷰를 남겨주시면 큰 도움이 돼요.
-            </AppText>
-            <View style={styles.reviewPromptActions}>
-              <Pressable
-                style={styles.reviewPromptSecondaryButton}
-                onPress={handleCloseReviewPrompt}
-              >
-                <AppText style={styles.reviewPromptSecondaryLabel}>
-                  다음에
-                </AppText>
-              </Pressable>
-              <Pressable
-                style={styles.reviewPromptPrimaryButton}
-                onPress={handlePressReview}
-              >
-                <AppText style={styles.reviewPromptPrimaryLabel}>
-                  리뷰 남기기
-                </AppText>
-              </Pressable>
-            </View>
-          </View>
-        </Modal>
 
-        {/* CTA */}
-        <AppButton
-          label="+ 음료 기록하기"
-          variant="primary"
-          onPress={onPressWrite}
-          style={styles.cta}
-        />
+          {/* CTA */}
+          <AppButton
+            label="+ 음료 기록하기"
+            variant="primary"
+            onPress={onPressWrite}
+            style={styles.cta}
+          />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1110,16 +1148,21 @@ const styles = StyleSheet.create({
   },
   cardRow: {
     flexDirection: "row",
-    gap: 12,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 12,
     paddingHorizontal: 20,
     marginTop: 6,
   },
   miniCard: {
-    flex: 1,
+    width: "48%",
+    minHeight: 104,
     borderRadius: 14,
     borderWidth: 1.5,
-    paddingVertical: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     alignItems: "center",
+    justifyContent: "center",
   },
   miniCardLabel: {
     ...TYPOGRAPHY.preset.caption,

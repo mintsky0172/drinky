@@ -23,6 +23,7 @@ export type Recipe = {
   mlPerServing?: number;
   caffeineMgPerServing?: number;
   sugarGPerServing?: number;
+  calorieKcalPerServing?: number;
   isWaterOnly?: boolean;
   isPublic?: boolean;
   normalizedName?: string;
@@ -46,6 +47,7 @@ type UpdateRecipeInput = {
   mlPerServing: number;
   caffeineMgPerServing: number;
   sugarGPerServing: number;
+  calorieKcalPerServing: number;
   isWaterOnly: boolean;
   isPublic: boolean;
   normalizedName?: string;
@@ -65,6 +67,7 @@ type CreateRecipeInput = {
     mlPerServing: number;
     caffeineMgPerServing: number;
     sugarGPerServing: number;
+    calorieKcalPerServing: number;
     isWaterOnly: boolean;
     isPublic: boolean;
     normalizedName?: string;

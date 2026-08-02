@@ -15,6 +15,7 @@ export async function getGuestGoals(): Promise<UserGoals> {
       waterMl: Number(parsed.waterMl ?? DEFAULT_GOALS.waterMl),
       caffeineMg: Number(parsed.caffeineMg ?? DEFAULT_GOALS.caffeineMg),
       sugarG: Number(parsed.sugarG ?? DEFAULT_GOALS.sugarG),
+      calorieKcal: Number(parsed.calorieKcal ?? DEFAULT_GOALS.calorieKcal),
     };
   } catch {
     return DEFAULT_GOALS;

@@ -14,6 +14,7 @@ export type BuildEntryInput = {
   mlPerServing?: number | null;
   caffeineMgPerServing?: number | null;
   sugarGPerServing?: number | null;
+  calorieKcalPerServing?: number | null;
   isWaterOnly?: boolean;
   date: Date;
   consumedAt: Date;
@@ -58,13 +59,14 @@ export default function buildEntryPayload(
   );
   const mlPerUnit = unit === "cup" ? safeMlPerServing : 1;
   const totalMl = Math.round(amount * mlPerUnit);
-  const servingRatio =
-    unit === "cup" ? amount : totalMl / safeMlPerServing;
+  const servingRatio = unit === "cup" ? amount : totalMl / safeMlPerServing;
 
   const caffeinePerServing = toNonNegativeNumber(input.caffeineMgPerServing);
   const sugarPerServing = toNonNegativeNumber(input.sugarGPerServing);
   const totalCaffeineMg = Math.round(caffeinePerServing * servingRatio);
   const totalSugarG = Math.round(sugarPerServing * servingRatio);
+  const caloriePerServing = toNonNegativeNumber(input.calorieKcalPerServing);
+  const totalCalorieKcal = Math.round(caloriePerServing * servingRatio);
 
   const rawMemo = input.memo?.trim() ?? "";
   const rawBrandLabel = input.brandLabel?.trim() ?? "";
@@ -89,6 +91,7 @@ export default function buildEntryPayload(
     totalMl,
     totalCaffeineMg: Math.max(0, totalCaffeineMg),
     totalSugarG: Math.max(0, totalSugarG),
+    totalCalorieKcal: Math.max(0, totalCalorieKcal),
     waterMl: isWaterOnly ? totalMl : 0,
     memo: rawMemo || null,
   };

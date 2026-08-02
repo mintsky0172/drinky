@@ -5,12 +5,14 @@ export type UserGoals = {
   waterMl: number;
   sugarG: number;
   caffeineMg: number;
+  calorieKcal: number;
 };
 
 export const DEFAULT_GOALS: UserGoals = {
   waterMl: 2000,
   sugarG: 50,
   caffeineMg: 300,
+  calorieKcal: 1000,
 };
 
 export async function updateUserGoals(uid: string, goals: UserGoals) {

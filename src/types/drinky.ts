@@ -41,6 +41,8 @@ export type EntryDoc = {
 
     totalCaffeineMg: number;
     totalSugarG: number;
+    totalCalorieKcal: number;
+    calorieKcalPerServing?: number;
 
     waterMl: number; // isWaterOnly ? totalMl : 0
 

@@ -42,6 +42,7 @@ type RecipeFormValues = {
   mlPerServing: string;
   caffeineMgPerServing: string;
   sugarGPerServing: string;
+  calorieKcalPerServing: string;
   isWaterOnly: boolean;
 };
 
@@ -82,6 +83,7 @@ function validateRecipeForm(values: RecipeFormValues) {
   const ml = Number(values.mlPerServing || 0);
   const caffeine = Number(values.caffeineMgPerServing || 0);
   const sugar = Number(values.sugarGPerServing || 0);
+  const calorie = Number(values.calorieKcalPerServing || 0);
 
   if (!values.name.trim()) {
     errors.push("음료명을 입력해 주세요.");
@@ -110,6 +112,10 @@ function validateRecipeForm(values: RecipeFormValues) {
   if (!Number.isFinite(sugar) || sugar < 0) {
     errors.push("당류 값은 0 이상이어야 해요.");
   }
+
+  if (!Number.isFinite(calorie) || calorie < 0) {
+  errors.push("칼로리 값은 0 이상이어야 해요.");
+} 
 
   if (values.isWaterOnly && values.category !== "물") {
     warnings.push("수분 섭취로 인정되는데 카테고리가 물이 아니에요.");
@@ -156,7 +162,7 @@ const NewRecipeScreen = () => {
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
-  const [caloriesKcalPerServing, setCaloriesKcalPerServing] = useState("");
+  const [calorieKcalPerServing, setCalorieKcalPerServing] = useState("");
   const [isWaterOnly, setIsWaterOnly] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
 
@@ -199,6 +205,7 @@ const NewRecipeScreen = () => {
       mlPerServing,
       caffeineMgPerServing,
       sugarGPerServing,
+      calorieKcalPerServing,
       isWaterOnly,
     });
 
@@ -225,6 +232,7 @@ const NewRecipeScreen = () => {
           mlPerServing: Number(mlPerServing || 0),
           caffeineMgPerServing: Number(caffeineMgPerServing || 0),
           sugarGPerServing: Number(sugarGPerServing || 0),
+          calorieKcalPerServing: Number(calorieKcalPerServing || 0),
           isWaterOnly,
           isPublic,
           normalizedName: name.replace(/\s/g, ""),
@@ -437,8 +445,8 @@ const NewRecipeScreen = () => {
             />
             <Input
               label="칼로리(kcal)"
-              value={caloriesKcalPerServing}
-              onChangeText={setCaloriesKcalPerServing}
+              value={calorieKcalPerServing}
+              onChangeText={setCalorieKcalPerServing}
               keyboardType="decimal-pad"
             />
           </View>

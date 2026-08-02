@@ -33,6 +33,7 @@ const RECOMMENDED_GOALS: UserGoals = {
   waterMl: 1500,
   caffeineMg: 400,
   sugarG: 50,
+  calorieKcal: 1000,
 };
 
 const GoalSettingsScreen = () => {
@@ -47,6 +48,9 @@ const GoalSettingsScreen = () => {
     String(DEFAULT_GOALS.caffeineMg),
   );
   const [sugarText, setSugarText] = useState(String(DEFAULT_GOALS.sugarG));
+  const [calorieText, setCalorieText] = useState(
+    String(DEFAULT_GOALS.calorieKcal),
+  );
 
   React.useEffect(() => {
     const run = async () => {
@@ -56,6 +60,7 @@ const GoalSettingsScreen = () => {
           setWaterText(String(guestGoals.waterMl));
           setCaffeineText(String(guestGoals.caffeineMg));
           setSugarText(String(guestGoals.sugarG));
+          setCalorieText(String(guestGoals.calorieKcal));
           return;
         }
 
@@ -65,6 +70,7 @@ const GoalSettingsScreen = () => {
         setWaterText(String(g.waterMl ?? DEFAULT_GOALS.waterMl));
         setCaffeineText(String(g.caffeineMg ?? DEFAULT_GOALS.caffeineMg));
         setSugarText(String(g.sugarG ?? DEFAULT_GOALS.sugarG));
+        setCalorieText(String(g.calorieKcal ?? DEFAULT_GOALS.calorieKcal));
       } catch {
         // 불러오기 실패해도 기본값으로 진행
       }
@@ -76,25 +82,29 @@ const GoalSettingsScreen = () => {
     const waterMl = clamp(toInt(waterText), 0, 6000);
     const caffeineMg = clamp(toInt(caffeineText), 0, 800);
     const sugarG = clamp(toInt(sugarText), 0, 200);
-    return { waterMl, caffeineMg, sugarG };
-  }, [waterText, caffeineText, sugarText]);
+    const calorieKcal = clamp(toInt(calorieText), 0, 5000);
+    return { waterMl, caffeineMg, sugarG, calorieKcal };
+  }, [calorieText, waterText, caffeineText, sugarText]);
 
   const handleQuickPick = useCallback((key: keyof UserGoals, value: number) => {
     if (key === "waterMl") setWaterText(String(value));
     if (key === "caffeineMg") setCaffeineText(String(value));
     if (key === "sugarG") setSugarText(String(value));
+    if (key === "calorieKcal") setCalorieText(String(value));
   }, []);
 
   const handleReset = useCallback(() => {
     setWaterText(String(DEFAULT_GOALS.waterMl));
     setCaffeineText(String(DEFAULT_GOALS.caffeineMg));
     setSugarText(String(DEFAULT_GOALS.sugarG));
+    setCalorieText(String(DEFAULT_GOALS.calorieKcal));
   }, []);
 
   const handleUseRecommendedGoals = useCallback(() => {
     setWaterText(String(RECOMMENDED_GOALS.waterMl));
     setCaffeineText(String(RECOMMENDED_GOALS.caffeineMg));
     setSugarText(String(RECOMMENDED_GOALS.sugarG));
+    setCalorieText(String(RECOMMENDED_GOALS.calorieKcal));
     Toast.show({
       type: "info",
       text1: "추천 목표를 입력했어요",
@@ -168,6 +178,7 @@ const GoalSettingsScreen = () => {
             <RecommendedGoalValue label="수분" value="1500mL" />
             <RecommendedGoalValue label="카페인" value="400mg" />
             <RecommendedGoalValue label="당류" value="50g" />
+            <RecommendedGoalValue label="열량" value="1000kcal" />
           </View>
         </Pressable>
 
@@ -233,6 +244,27 @@ const GoalSettingsScreen = () => {
             value={sugarText}
             onChangeText={setSugarText}
             suffix="g"
+          />
+        </View>
+
+        {/* 칼로리 */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>열량(kcal)</Text>
+          <View style={styles.quickRow}>
+            {[500, 1000, 1500].map((v) => (
+              <QuickChip
+                key={v}
+                label={`${v}kcal`}
+                onPress={() => handleQuickPick("calorieKcal", v)}
+              />
+            ))}
+          </View>
+
+          <LabeledInput
+            label="직접 입력"
+            value={calorieText}
+            onChangeText={setCalorieText}
+            suffix="kcal"
           />
         </View>
 
