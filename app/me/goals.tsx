@@ -29,6 +29,11 @@ const toInt = (s: string) => {
   const n = parseInt((s ?? "").replace(/[^\d]/g, ""), 10);
   return Number.isFinite(n) ? n : 0;
 };
+const RECOMMENDED_GOALS: UserGoals = {
+  waterMl: 1500,
+  caffeineMg: 400,
+  sugarG: 50,
+};
 
 const GoalSettingsScreen = () => {
   const router = useRouter();
@@ -86,6 +91,17 @@ const GoalSettingsScreen = () => {
     setSugarText(String(DEFAULT_GOALS.sugarG));
   }, []);
 
+  const handleUseRecommendedGoals = useCallback(() => {
+    setWaterText(String(RECOMMENDED_GOALS.waterMl));
+    setCaffeineText(String(RECOMMENDED_GOALS.caffeineMg));
+    setSugarText(String(RECOMMENDED_GOALS.sugarG));
+    Toast.show({
+      type: "info",
+      text1: "추천 목표를 입력했어요",
+      text2: "저장하기를 누르면 적용돼요.",
+    });
+  }, []);
+
   const handleSave = useCallback(async () => {
     if (parsed.waterMl === 0) {
       Toast.show({
@@ -130,6 +146,30 @@ const GoalSettingsScreen = () => {
             </Text>
           </View>
         ) : null}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.recommendedCard,
+            pressed && styles.recommendedCardPressed,
+            loading && styles.recommendedCardDisabled,
+          ]}
+          onPress={handleUseRecommendedGoals}
+          disabled={loading}
+          accessibilityRole="button"
+        >
+          <View style={styles.recommendedHeader}>
+            <View>
+              <Text style={styles.recommendedEyebrow}>RECOMMENDED</Text>
+              <Text style={styles.recommendedTitle}>추천 목표로 설정하기</Text>
+            </View>
+            <Text style={styles.recommendedAction}>이 카드를 눌러서{'\n'}적용할 수 있어요.</Text>
+          </View>
+          <View style={styles.recommendedValues}>
+            <RecommendedGoalValue label="수분" value="1500mL" />
+            <RecommendedGoalValue label="카페인" value="400mg" />
+            <RecommendedGoalValue label="당류" value="50g" />
+          </View>
+        </Pressable>
 
         {/* 수분 */}
         <View style={styles.card}>
@@ -226,6 +266,21 @@ function QuickChip({ label, onPress }: { label: string; onPress: () => void }) {
   );
 }
 
+function RecommendedGoalValue({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <View style={styles.recommendedValuePill}>
+      <Text style={styles.recommendedValueLabel}>{label}</Text>
+      <Text style={styles.recommendedValueText}>{value}</Text>
+    </View>
+  );
+}
+
 function LabeledInput({
   label,
   value,
@@ -296,6 +351,65 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
     lineHeight: 20,
   },
+  recommendedCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.primary.caramel,
+    backgroundColor: COLORS.base.creamPaper,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  recommendedCardPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.99 }],
+  },
+  recommendedCardDisabled: {
+    opacity: 0.55,
+  },
+  recommendedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  recommendedEyebrow: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.primary.caramel,
+    marginBottom: 2,
+  },
+  recommendedTitle: {
+    ...TYPOGRAPHY.preset.h3,
+    color: COLORS.semantic.textPrimary,
+  },
+  recommendedAction: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.primary.caramel,
+  },
+  recommendedValues: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  recommendedValuePill: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: COLORS.semantic.surface,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    paddingVertical: 9,
+    alignItems: "center",
+  },
+  recommendedValueLabel: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+    marginBottom: 2,
+  },
+  recommendedValueText: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textPrimary,
+  },
   cardTitle: { ...TYPOGRAPHY.preset.h3, color: COLORS.semantic.textPrimary },
   cardHint: {
     ...TYPOGRAPHY.preset.caption,
@@ -338,7 +452,7 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
     paddingVertical: 0,
-    lineHeight: 0,
+    lineHeight: 22,
   },
   suffix: {
     ...TYPOGRAPHY.preset.body,

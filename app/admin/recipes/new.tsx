@@ -63,7 +63,9 @@ const CATEGORY_OPTIONS = [
 async function pickIconImage() {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
-    allowsEditing: true,
+    // 시스템 크롭 화면은 PNG의 투명 영역을 흰색으로 평면화할 수 있어요.
+    // 원본을 그대로 받아야 알파 채널이 보존됩니다.
+    allowsEditing: false,
     aspect: [1, 1],
     quality: 1,
   });
@@ -154,6 +156,7 @@ const NewRecipeScreen = () => {
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
+  const [caloriesKcalPerServing, setCaloriesKcalPerServing] = useState("");
   const [isWaterOnly, setIsWaterOnly] = useState(false);
   const [isPublic, setIsPublic] = useState(true);
 
@@ -430,6 +433,12 @@ const NewRecipeScreen = () => {
               label="당류(g)"
               value={sugarGPerServing}
               onChangeText={setSugarGPerServing}
+              keyboardType="decimal-pad"
+            />
+            <Input
+              label="칼로리(kcal)"
+              value={caloriesKcalPerServing}
+              onChangeText={setCaloriesKcalPerServing}
               keyboardType="decimal-pad"
             />
           </View>
