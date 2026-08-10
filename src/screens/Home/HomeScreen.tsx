@@ -1013,15 +1013,21 @@ const HomeScreen = () => {
             </View>
           </Modal>
 
-          {/* CTA */}
-          <AppButton
-            label="+ 음료 기록하기"
-            variant="primary"
-            onPress={onPressWrite}
-            style={styles.cta}
-          />
         </ScrollView>
       </KeyboardAvoidingView>
+      <View pointerEvents="box-none" style={styles.floatingActionArea}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="음료 기록하기"
+          style={({ pressed }) => [
+            styles.floatingActionButton,
+            pressed && styles.floatingActionButtonPressed,
+          ]}
+          onPress={onPressWrite}
+        >
+          <Image source={require("@/assets/icons/etc/plus.png")} style={styles.floatingActionIcon} />
+        </Pressable>
+      </View>
     </SafeAreaView>
   );
 };
@@ -1070,7 +1076,8 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    paddingTop: 20,
+    paddingTop: 10,
+    paddingBottom: 104,
     backgroundColor: "transparent",
   },
   confettiOverlay: {
@@ -1088,7 +1095,7 @@ const styles = StyleSheet.create({
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
-    paddingTop: 8,
+    paddingTop: 4,
     paddingBottom: 10,
   },
   dateCenter: {
@@ -1115,7 +1122,7 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.h3,
     color: COLORS.semantic.textPrimary,
     paddingHorizontal: 20,
-    marginTop: 18,
+    marginTop: 8,
     marginBottom: 10,
   },
   listCard: {
@@ -1137,7 +1144,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    marginTop: 18,
+    marginTop: 9,
     marginBottom: 10,
   },
   summaryHeaderTitle: {
@@ -1181,13 +1188,37 @@ const styles = StyleSheet.create({
     ...TYPOGRAPHY.preset.caption,
     color: COLORS.semantic.textSecondary,
     textAlign: "center",
-    marginTop: 10,
+    marginTop: 5,
   },
 
-  cta: {
-    marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 20,
+  floatingActionArea: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  floatingActionButton: {
+    position: "absolute",
+    right: 20,
+    bottom: 18,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary.caramel,
+    shadowColor: "#3C281E",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    elevation: 7,
+  },
+  floatingActionButtonPressed: {
+    transform: [{ scale: 0.94 }],
+    opacity: 0.9,
+  },
+  floatingActionIcon: {
+    width: 32,
+    height: 32,
+    resizeMode: "contain",
+    tintColor: COLORS.base.white,
   },
   calendar: {
     alignSelf: "flex-end",
