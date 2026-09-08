@@ -357,7 +357,7 @@ const RecordCreateScreen = () => {
               ? Number((data.createdAt as any).toMillis())
               : 0,
           globalPopularityScore: Number(
-            data.popularityCount ?? data.popularityScore ?? 0,
+            data.popularityLiveCount ?? data.popularityCount ?? data.popularityScore ?? 0,
           ),
         } satisfies Item;
       }).filter((item) => item.name.trim().length > 0);
@@ -422,39 +422,11 @@ const RecordCreateScreen = () => {
   };
 
   const searchItems = useMemo(() => {
-    if (recipeItems.length > 0) {
-      const countByRecipeId = new Map<string, number>();
-      const countByName = new Map<string, number>();
-
-      entryHistory.forEach((entry) => {
-        const drinkId =
-          typeof entry?.drinkId === "string" ? entry.drinkId : undefined;
-        const drinkName = String(entry?.drinkName ?? "")
-          .trim()
-          .toLowerCase();
-
-        if (drinkId) {
-          countByRecipeId.set(drinkId, (countByRecipeId.get(drinkId) ?? 0) + 1);
-        }
-        if (drinkName) {
-          countByName.set(drinkName, (countByName.get(drinkName) ?? 0) + 1);
-        }
-      });
-
-      return recipeItems.map((item) => {
-        const byId = countByRecipeId.get(item.id) ?? 0;
-        const byName = countByName.get(item.name.trim().toLowerCase()) ?? 0;
-        const localPopularity = Math.max(byId, byName);
-        const globalPopularity = Number(item.globalPopularityScore ?? 0);
-        return {
-          ...item,
-          popularityScore:
-            globalPopularity > 0 ? globalPopularity : localPopularity,
-        };
-      });
-    }
-    return [];
-  }, [entryHistory, recipeItems]);
+    return recipeItems.map((item) => ({
+      ...item,
+      popularityScore: Number(item.globalPopularityScore ?? 0),
+    }));
+  }, [recipeItems]);
 
   const { frequentItems, recentItems } = useMemo(() => {
     const byRecipeId = new Map<string, Item>();

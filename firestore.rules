@@ -1,0 +1,302 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ---------- Helpers ---------- */
+    function signedIn() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get("role", "user") == "admin";
+    }
+
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isString(x) { return x is string; }
+    function isNumber(x) { return x is number; }
+    function isBool(x) { return x is bool; }
+    
+
+
+    // "YYYY-MM-DD" (10 chars) / "YYYY-MM" (7 chars) 수준의 최소 검증
+    function looksLikeDate(s) { return isString(s) && s.size() == 10; }
+    function looksLikeMonth(s) { return isString(s) && s.size() == 7; }
+
+    // 인기순 집계 필드는 서버에서만 생성·변경합니다.
+    function popularityFields() {
+      return [
+        "popularityLiveCount",
+        "popularityCount",
+        "popularityScore",
+        "popularityUpdatedAt"
+      ];
+    }
+
+    /* ---------- Public Recipes ---------- */
+    // 누구나 읽기 가능. 관리자는 일반 필드만 등록·수정할 수 있습니다.
+    match /recipes/{recipeId} {
+      allow read: if true;
+      allow create: if isAdmin()
+        && !request.resource.data.keys().hasAny(popularityFields());
+      allow update: if isAdmin()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(popularityFields());
+      allow delete: if false;
+    }
+
+    // Admin SDK는 보안 규칙을 우회하므로 서버의 집계 작업은 계속 가능합니다.
+    match /_recipePopularityEntries/{document=**} {
+      allow read, write: if false;
+    }
+
+    /* ---------- Users ---------- */
+    match /users/{uid} {
+      // 프로필은 본인만 접근하며, 관리자 역할 부여·회수는 서버에서 처리합니다.
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && (!("role" in request.resource.data) || request.resource.data.role == "user");
+      allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["role"]);
+      allow delete: if isOwner(uid);
+      
+      match /entries/{entryId} {
+      	allow read, create, update, delete: if isOwner(uid);
+      }
+
+      /* ----- Records subcollection ----- */
+      match /records/{recordId} {
+        allow read: if isOwner(uid);
+
+        // create: 필수 필드 존재 + 소유자만
+        allow create: if isOwner(uid) && isValidRecordCreate();
+
+        // update: 소유자만 + (중요) createdAt, date, month는 변경 금지 
+        allow update: if isOwner(uid) && isValidRecordUpdate();
+
+        allow delete: if isOwner(uid);
+
+        function isValidRecordBase(data) {
+          return
+            // 필수
+            data.keys().hasAll([
+              "date", "month", "amount",
+              "name", "category",
+              "caffeineMg", "sugarG",
+              "ingredientKey",
+              "createdAt", "updatedAt"
+            ]) &&
+
+            looksLikeDate(data.date) &&
+            looksLikeMonth(data.month) &&
+
+            isNumber(data.amount) && data.amount >= 1 && data.amount <= 20 &&
+
+            isString(data.name) && data.name.size() > 0 && data.name.size() <= 60 &&
+
+            // brand/memo/recipeId는 선택
+            (!("brand" in data) || (isString(data.brand) && data.brand.size() <= 40)) &&
+            (!("memo" in data)  || (isString(data.memo)  && data.memo.size() <= 200)) &&
+            (!("recipeId" in data) || isString(data.recipeId)) &&
+
+            // 카테고리 문자열 최소 검증
+            isString(data.category) && data.category.size() > 0 && data.category.size() <= 20 &&
+
+            // 카페인/당: 음수 금지, 상한은 넉넉히
+            isNumber(data.caffeineMg) && data.caffeineMg >= 0 && data.caffeineMg <= 2000 &&
+            isNumber(data.sugarG) && data.sugarG >= 0 && data.sugarG <= 2000 &&
+
+            isString(data.ingredientKey) && data.ingredientKey.size() > 0 && data.ingredientKey.size() <= 30;
+        }
+
+        function isValidRecordCreate() {
+          let d = request.resource.data;
+          return isValidRecordBase(d);
+        }
+
+        function isValidRecordUpdate() {
+          let d = request.resource.data;
+
+          // 기본 형태는 유지
+          return isValidRecordBase(d)
+            // createdAt은 불변
+            && d.createdAt == resource.data.createdAt
+            // 기록 날짜/월도 불변
+            && d.date == resource.data.date
+            && d.month == resource.data.month;
+        }
+      }
+
+      match /dailySummaries/{dateKey} {
+    allow read, create, update, delete: if isOwner(uid);
+  }
+ 
+      /* ----- Months subcollection (calendar/stat cache) ----- */
+      match /months/{monthId} {
+        allow read: if isOwner(uid);
+        allow create: if isOwner(uid) && isValidMonthSummary();
+        allow update: if isOwner(uid) && isValidMonthSummary();
+        allow delete: if isOwner(uid);
+
+        function isValidMonthSummary() {
+          let d = request.resource.data;
+
+          return d.keys().hasAll([
+            "month",
+            "topIngredientByDate",
+            "totalCaffeineMg",
+            "totalSugarG",
+            "totalWaterMl",
+            "totalCups",
+            "updatedAt"
+          ]) &&
+          looksLikeMonth(d.month) &&
+          // monthId와 month 일치
+          d.month == monthId &&
+
+          // 달력 맵: 날짜 -> ingredientKey
+          d.topIngredientByDate is map &&
+
+          isNumber(d.totalCaffeineMg) && d.totalCaffeineMg >= 0 && d.totalCaffeineMg <= 999999 &&
+          isNumber(d.totalSugarG) && d.totalSugarG >= 0 && d.totalSugarG <= 999999 &&
+
+          // 수분은 "순수 물"만
+          isNumber(d.totalWaterMl) && d.totalWaterMl >= 0 && d.totalWaterMl <= 999999 &&
+
+          isNumber(d.totalCups) && d.totalCups >= 0 && d.totalCups <= 999999;
+        }
+      }
+    }
+    
+       /* ---------- Reports ---------- */
+    match /reports/{reportId} {
+      allow create: if
+        request.resource.data.keys().hasAll([
+          "type",
+          "title",
+          "message",
+          "createdBy",
+          "createdAt",
+          "status"
+        ])
+        && request.resource.data.type in ["new_drink", "discontinued_drink"]
+        && request.resource.data.status == "open"
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+
+        // 로그인 사용자 or guest 허용
+        && (
+          (signedIn()
+            && request.resource.data.createdBy == request.auth.uid
+            && (
+              !("isAnonymous" in request.resource.data)
+              || request.resource.data.isAnonymous == false
+            )
+          )
+          ||
+          (!signedIn()
+            && request.resource.data.createdBy == "guest"
+            && request.resource.data.isAnonymous == true
+          )
+        )
+
+        && (
+          !("brand" in request.resource.data)
+          || request.resource.data.brand is string
+        )
+        && (
+          !("drinkName" in request.resource.data)
+          || request.resource.data.drinkName is string
+        )
+        && (
+          !("createdByNickname" in request.resource.data)
+          || request.resource.data.createdByNickname is string
+        )
+        && (
+          !("isAnonymous" in request.resource.data)
+          || request.resource.data.isAnonymous is bool
+        )
+        && (
+          !("adminMemo" in request.resource.data)
+          || request.resource.data.adminMemo is string
+        );
+
+      allow read: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    /* ---------- Inquiries ---------- */
+    match /inquiries/{inquiryId} {
+      allow create: if
+        request.resource.data.keys().hasAll([
+          "subject",
+          "message",
+          "createdBy",
+          "createdAt",
+          "status"
+        ])
+        && request.resource.data.status == "open"
+        && request.resource.data.subject is string
+        && request.resource.data.subject.size() > 0
+        && request.resource.data.subject.size() <= 120
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+
+        // 로그인 사용자 or guest 허용
+        && (
+          (signedIn()
+            && request.resource.data.createdBy == request.auth.uid
+            && (
+              !("isAnonymous" in request.resource.data)
+              || request.resource.data.isAnonymous == false
+            )
+          )
+          ||
+          (!signedIn()
+            && request.resource.data.createdBy == "guest"
+            && request.resource.data.isAnonymous == true
+          )
+        )
+
+        && (
+          !("email" in request.resource.data)
+          || request.resource.data.email is string
+        )
+        && (
+          !("createdByNickname" in request.resource.data)
+          || request.resource.data.createdByNickname is string
+        )
+        && (
+          !("isAnonymous" in request.resource.data)
+          || request.resource.data.isAnonymous is bool
+        )
+        && (
+          !("adminMemo" in request.resource.data)
+          || request.resource.data.adminMemo is string
+        );
+
+      allow read: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+
+
+
+    /* ---------- Deny everything else ---------- */
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

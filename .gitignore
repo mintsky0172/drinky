@@ -44,6 +44,7 @@ app-example
 /android
 
 firebase-debug.log
+firestore-debug.log
 
 .gitignore
  
@@ -60,3 +61,5 @@ marketing/**/*.png
 
 # Local source icons uploaded to Firebase Storage
 /seed/new-icons/
+
+/functions/README.md
