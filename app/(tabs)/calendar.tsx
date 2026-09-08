@@ -249,7 +249,7 @@ function getGoalSummaryText(statuses: ("달성" | "거의" | "부족")[]) {
   }
 
   if (
-    statuses.filter((status) => status === "달성").length >= 2 ||
+    statuses.filter((status) => status === "달성").length >= Math.ceil(statuses.length * 2 / 3) ||
     statuses.includes("거의")
   ) {
     return "목표에 거의 가까워졌어요.";
@@ -602,6 +602,7 @@ function Calendar() {
       getGoalStatus(monthTotals.avgWaterMl, goals.waterMl, "min"),
       getGoalStatus(monthTotals.avgCaffeineMg, goals.caffeineMg, "max"),
       getGoalStatus(monthTotals.avgSugarG, goals.sugarG, "max"),
+      getGoalStatus(monthTotals.avgCalorieKcal, goals.calorieKcal, "max"),
     ];
 
     return `${getGoalSummaryText(statuses)}`;
@@ -874,6 +875,7 @@ function Calendar() {
           </View>
 
           <View style={styles.monthSummaryGrid}>
+            <View style={styles.metricRow}>
             <View style={[styles.metricCard, styles.metricCardBlue]}>
               <AppText style={styles.metricValue}>
                 {monthTotals.avgWaterMl.toLocaleString()} mL
@@ -887,12 +889,21 @@ function Calendar() {
               </AppText>
               <AppText style={styles.metricLabel}>일평균{"\n"}카페인☕️</AppText>
             </View>
+            </View>
 
+            <View style={styles.metricRow}>
             <View style={[styles.metricCard, styles.metricCardPink]}>
               <AppText style={styles.metricValue}>
                 {monthTotals.avgSugarG.toLocaleString()} g
               </AppText>
               <AppText style={styles.metricLabel}>일평균{"\n"}당류🍭</AppText>
+            </View>
+            <View style={[styles.metricCard, styles.metricCardPeach]}>
+              <AppText style={styles.metricValue}>
+                {monthTotals.avgCalorieKcal.toLocaleString()} kcal
+              </AppText>
+              <AppText style={styles.metricLabel}>일평균{"\n"}열량</AppText>
+            </View>
             </View>
           </View>
 
@@ -929,6 +940,7 @@ function Calendar() {
           ) : null}
 
           <View style={styles.footerMetricsRow}>
+            <View style={styles.metricRow}>
             <View style={styles.footerMetricPill}>
               <AppText style={styles.footerMetricValue}>
                 {selectedTotals.waterMl.toLocaleString()} mL
@@ -942,12 +954,21 @@ function Calendar() {
               </AppText>
               <AppText style={styles.footerMetricLabel}>카페인</AppText>
             </View>
+            </View>
 
+            <View style={styles.metricRow}>
             <View style={styles.footerMetricPill}>
               <AppText style={styles.footerMetricValue}>
                 {selectedTotals.sugarG.toLocaleString()} g
               </AppText>
               <AppText style={styles.footerMetricLabel}>당류</AppText>
+            </View>
+            <View style={styles.footerMetricPill}>
+              <AppText style={styles.footerMetricValue}>
+                {selectedTotals.calorieKcal.toLocaleString()} kcal
+              </AppText>
+              <AppText style={styles.footerMetricLabel}>열량</AppText>
+            </View>
             </View>
           </View>
 
@@ -1199,8 +1220,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   monthSummaryGrid: {
+    gap: 10,
+  },
+  metricRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
     gap: 10,
   },
   monthSummaryComparison: {
@@ -1223,6 +1246,7 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     flex: 1,
+    minWidth: 0,
     minHeight: 76,
     borderRadius: 16,
     paddingHorizontal: 12,
@@ -1240,6 +1264,9 @@ const styles = StyleSheet.create({
   },
   metricCardPink: {
     backgroundColor: "#FFF1F3",
+  },
+  metricCardPeach: {
+    backgroundColor: "#FFF3E6",
   },
   metricValue: {
     ...TYPOGRAPHY.preset.h2,
@@ -1383,12 +1410,12 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   footerMetricsRow: {
-    flexDirection: "row",
     gap: 8,
     marginBottom: 14,
   },
   footerMetricPill: {
     flex: 1,
+    minWidth: 0,
     borderRadius: 14,
     paddingVertical: 10,
     paddingHorizontal: 8,

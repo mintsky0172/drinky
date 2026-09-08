@@ -299,10 +299,16 @@ function Me() {
               <AppText preset="h3">카페인</AppText>
               <GoalValue value={goals.caffeineMg} unit="mg" />
             </View>
+          </View>
 
+          <View style={styles.goalRow}>
             <View style={[styles.goalCard, styles.goalCardPink]}>
               <AppText preset="h3">당류</AppText>
               <GoalValue value={goals.sugarG} unit="g" />
+            </View>
+            <View style={[styles.goalCard, styles.goalCardPeach]}>
+              <AppText preset="h3">열량</AppText>
+              <GoalValue value={goals.calorieKcal} unit="kcal" />
             </View>
           </View>
         </View>
@@ -632,6 +638,9 @@ const styles = StyleSheet.create({
   },
   goalCardPink: {
     backgroundColor: "#FFF1F3",
+  },
+  goalCardPeach: {
+    backgroundColor: "#FFF3E6",
   },
   goalLabel: {
     marginBottom: 8,

@@ -3,10 +3,14 @@ import {
   StyleSheet,
   Text,
   View,
-  ScrollView,
+  Animated,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   TextInput,
 } from "react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { DEFAULT_GOALS, updateUserGoals, UserGoals } from "@/src/lib/user";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/providers/AuthProvider";
@@ -20,6 +24,7 @@ import {
 } from "@/src/features/entries/repositories/guestGoalsRepository";
 
 import AppButton from "@/src/components/ui/AppButton";
+import AppText from "@/src/components/ui/AppText";
 import { COLORS } from "@/src/constants/colors";
 import { TYPOGRAPHY } from "@/src/constants/typography";
 
@@ -33,7 +38,7 @@ const RECOMMENDED_GOALS: UserGoals = {
   waterMl: 1500,
   caffeineMg: 400,
   sugarG: 50,
-  calorieKcal: 1000,
+  calorieKcal: 500,
 };
 
 const GoalSettingsScreen = () => {
@@ -41,6 +46,18 @@ const GoalSettingsScreen = () => {
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const slideOffset = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
 
   // 입력은 문자열로 들고, 저장할 때 숫자로 변환
   const [waterText, setWaterText] = useState(String(DEFAULT_GOALS.waterMl));
@@ -136,23 +153,45 @@ const GoalSettingsScreen = () => {
     }
   }, [user, parsed, router]);
 
+  const slides = [
+    { key: "waterMl", title: "수분", unit: "mL", value: waterText, setValue: setWaterText, picks: [1500, 2000, 2500], hint: "수분은 순수 물 및 일부 차 종류만 계산돼요." },
+    { key: "caffeineMg", title: "카페인", unit: "mg", value: caffeineText, setValue: setCaffeineText, picks: [200, 300, 400], hint: "하루에 섭취할 카페인의 한도를 설정해 주세요." },
+    { key: "sugarG", title: "당류", unit: "g", value: sugarText, setValue: setSugarText, picks: [25, 50, 75], hint: "음료로 섭취할 하루 당류의 한도를 설정해 주세요." },
+    { key: "calorieKcal", title: "열량", unit: "kcal", value: calorieText, setValue: setCalorieText, picks: [500, 1000, 1500], hint: "음료로 섭취할 하루 열량의 한도를 설정해 주세요." },
+  ] satisfies { key: keyof UserGoals; title: string; unit: string; value: string; setValue: (value: string) => void; picks: number[]; hint: string }[];
+  const slide = slides[page];
+
+  const movePage = (direction: number) => {
+    const nextPage = page + direction;
+    if (nextPage < 0 || nextPage >= slides.length) return;
+    Keyboard.dismiss();
+    slideOffset.stopAnimation();
+    slideOffset.setValue(direction * 32);
+    setPage(nextPage);
+    Animated.timing(slideOffset, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+      isInteraction: false,
+    }).start();
+  };
+
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={styles.container}
-        showsVerticalScrollIndicator={false}
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <KeyboardAvoidingView
+        style={[styles.container, keyboardVisible && styles.keyboardContainer]}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Text style={styles.title}>목표 설정</Text>
+        <View style={keyboardVisible ? styles.hidden : undefined}>
+        <AppText preset="h1">목표 설정</AppText>
         <Text style={styles.sub}>
-          하루 목표를 정해두면{"\n"}홈 카드와 요약이 더 정확해져요.
+          항목별 하루 목표를 설정해 주세요.
         </Text>
 
         {!user ? (
           <View style={styles.guestNoticeBox}>
             <Text style={styles.guestNoticeText}>
-              비회원 목표는 이 기기에만 저장돼요. 로그인하지 않은 상태에서 앱을
-              삭제하면 함께 사라질 수 있어요.
+              비회원 목표는 이 기기에만 저장되며, 앱 삭제 시 사라질 수 있어요.
             </Text>
           </View>
         ) : null}
@@ -169,107 +208,64 @@ const GoalSettingsScreen = () => {
         >
           <View style={styles.recommendedHeader}>
             <View>
-              <Text style={styles.recommendedEyebrow}>RECOMMENDED</Text>
               <Text style={styles.recommendedTitle}>추천 목표로 설정하기</Text>
             </View>
-            <Text style={styles.recommendedAction}>이 카드를 눌러서{'\n'}적용할 수 있어요.</Text>
+            <Ionicons name="refresh-outline" size={20} color={COLORS.primary.caramel} />
           </View>
           <View style={styles.recommendedValues}>
-            <RecommendedGoalValue label="수분" value="1500mL" />
-            <RecommendedGoalValue label="카페인" value="400mg" />
-            <RecommendedGoalValue label="당류" value="50g" />
-            <RecommendedGoalValue label="열량" value="1000kcal" />
+            {slides.map((item) => (
+              <RecommendedGoalValue key={item.key} label={item.title} value={`${RECOMMENDED_GOALS[item.key]}${item.unit}`} />
+            ))}
           </View>
         </Pressable>
-
-        {/* 수분 */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>수분(mL)</Text>
-          <Text style={styles.cardHint}>※ 수분은 순수 물만 계산돼요.</Text>
-
-          <View style={styles.quickRow}>
-            {[1500, 2000, 2500].map((v) => (
-              <QuickChip
-                key={v}
-                label={`${v}mL`}
-                onPress={() => handleQuickPick("waterMl", v)}
-              />
-            ))}
-          </View>
-
-          <LabeledInput
-            label="직접 입력"
-            value={waterText}
-            onChangeText={setWaterText}
-            suffix="mL"
-          />
         </View>
 
-        {/* 카페인 */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>카페인(mg)</Text>
-          <View style={styles.quickRow}>
-            {[200, 300, 400].map((v) => (
-              <QuickChip
-                key={v}
-                label={`${v}mg`}
-                onPress={() => handleQuickPick("caffeineMg", v)}
-              />
-            ))}
+        <View style={styles.slideArea}>
+          <Animated.View style={[styles.card, { transform: [{ translateX: slideOffset }] }]}>
+            <Text style={styles.cardTitle}>{slide.title}({slide.unit})</Text>
+            <Text style={styles.cardHint}>{slide.hint}</Text>
+            <View style={styles.quickRow}>
+              {slide.picks.map((value) => (
+                <QuickChip
+                  key={`${slide.key}-${value}`}
+                  label={`${value}${slide.unit}`}
+                  onPress={() => handleQuickPick(slide.key, value)}
+                />
+              ))}
+            </View>
+            <LabeledInput
+              key={slide.key}
+              label={`${slide.title} 직접 입력`}
+              value={slide.value}
+              onChangeText={slide.setValue}
+              suffix={slide.unit}
+            />
+          </Animated.View>
+          <View style={styles.navigation}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="이전 목표"
+              disabled={page === 0}
+              style={[styles.arrowButton, page === 0 && styles.arrowDisabled]}
+              onPress={() => movePage(-1)}
+            >
+              <Ionicons name="chevron-back" size={24} color={COLORS.semantic.textPrimary} />
+            </Pressable>
+            <Text style={styles.pageLabel} accessibilityLiveRegion="polite">
+              {slide.title} · {page + 1} / {slides.length}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="다음 목표"
+              disabled={page === slides.length - 1}
+              style={[styles.arrowButton, page === slides.length - 1 && styles.arrowDisabled]}
+              onPress={() => movePage(1)}
+            >
+              <Ionicons name="chevron-forward" size={24} color={COLORS.semantic.textPrimary} />
+            </Pressable>
           </View>
-
-          <LabeledInput
-            label="직접 입력"
-            value={caffeineText}
-            onChangeText={setCaffeineText}
-            suffix="mg"
-          />
         </View>
-
-        {/* 당 */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>당류(g)</Text>
-          <View style={styles.quickRow}>
-            {[25, 50, 75].map((v) => (
-              <QuickChip
-                key={v}
-                label={`${v}g`}
-                onPress={() => handleQuickPick("sugarG", v)}
-              />
-            ))}
-          </View>
-
-          <LabeledInput
-            label="직접 입력"
-            value={sugarText}
-            onChangeText={setSugarText}
-            suffix="g"
-          />
-        </View>
-
-        {/* 칼로리 */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>열량(kcal)</Text>
-          <View style={styles.quickRow}>
-            {[500, 1000, 1500].map((v) => (
-              <QuickChip
-                key={v}
-                label={`${v}kcal`}
-                onPress={() => handleQuickPick("calorieKcal", v)}
-              />
-            ))}
-          </View>
-
-          <LabeledInput
-            label="직접 입력"
-            value={calorieText}
-            onChangeText={setCalorieText}
-            suffix="kcal"
-          />
-        </View>
-
-        <View style={{ height: 10 }} />
-
+        <View style={styles.actions}>
         <AppButton
           label="저장하기"
           variant="primary"
@@ -283,7 +279,8 @@ const GoalSettingsScreen = () => {
           onPress={handleReset}
           disabled={loading}
         />
-      </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -329,30 +326,51 @@ function LabeledInput({
       <Text style={styles.inputLabel}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
+          accessibilityLabel={label}
           value={value}
           onChangeText={onChangeText}
           keyboardType="number-pad"
           placeholder="0"
           placeholderTextColor={COLORS.semantic.textSecondary}
-          style={styles.input}
+          style={[styles.inputText, styles.input]}
         />
-        <Text style={styles.suffix}>{suffix}</Text>
+        <Text style={[styles.inputText, styles.suffix]}>{suffix}</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  hidden: { display: "none" },
   safe: { flex: 1, backgroundColor: "transparent" },
-  screen: { flex: 1, backgroundColor: "transparent" },
   container: {
-    flexGrow: 1,
-    paddingTop: 20,
-    paddingHorizontal: 40,
-    paddingBottom: 28,
+    flex: 1,
+    paddingTop: 70,
+    paddingHorizontal: 20,
+    paddingBottom: 12,
     backgroundColor: "transparent",
   },
-  title: { ...TYPOGRAPHY.preset.h2, color: COLORS.semantic.textPrimary },
+  slideArea: { flexGrow: 1, justifyContent: "flex-start" },
+  keyboardContainer: { paddingTop: 12 },
+  navigation: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginVertical: 12,
+  },
+  arrowButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+    backgroundColor: COLORS.base.creamPaper,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+  },
+  arrowDisabled: { opacity: 0.3 },
+  pageLabel: { ...TYPOGRAPHY.preset.caption, color: COLORS.semantic.textSecondary },
+  actions: { paddingTop: 4 },
   sub: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textSecondary,
@@ -391,7 +409,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 13,
     marginTop: 8,
-    marginBottom: 2,
   },
   recommendedCardPressed: {
     opacity: 0.88,
@@ -406,18 +423,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
-  recommendedEyebrow: {
-    ...TYPOGRAPHY.preset.caption,
-    color: COLORS.primary.caramel,
-    marginBottom: 2,
-  },
   recommendedTitle: {
     ...TYPOGRAPHY.preset.h3,
     color: COLORS.semantic.textPrimary,
-  },
-  recommendedAction: {
-    ...TYPOGRAPHY.preset.caption,
-    color: COLORS.primary.caramel,
   },
   recommendedValues: {
     flexDirection: "row",
@@ -478,16 +486,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: COLORS.semantic.surface,
   },
-  input: {
+  inputText: {
+    fontFamily: TYPOGRAPHY.preset.body.fontFamily,
+    fontSize: TYPOGRAPHY.preset.body.fontSize,
+    letterSpacing: TYPOGRAPHY.preset.body.letterSpacing,
+    includeFontPadding: false,
     textAlignVertical: "center",
+    padding: 0,
+  },
+  input: {
     flex: 1,
-    ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
-    paddingVertical: 0,
-    lineHeight: 22,
   },
   suffix: {
-    ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textSecondary,
     marginLeft: 8,
   },

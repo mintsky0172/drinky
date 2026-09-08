@@ -88,6 +88,7 @@ export default function NewReportScreen() {
             iconUrl?: string | null;
             createdAt?: { toMillis?: () => number };
             popularityCount?: number;
+            popularityLiveCount?: number;
             popularityScore?: number;
           };
 
@@ -109,7 +110,7 @@ export default function NewReportScreen() {
                 ? Number(data.createdAt.toMillis())
                 : 0,
             popularityScore: Number(
-              data.popularityCount ?? data.popularityScore ?? 0,
+              data.popularityLiveCount ?? data.popularityCount ?? data.popularityScore ?? 0,
             ),
           });
         });
