@@ -3,7 +3,7 @@ import { storage } from "@/src/lib/firebase";
 
 type UploadIconParams = {
   uri: string;
-  folder: "drink-icons" | "ingredient-icons";
+  folder: "drink-icons" | "ingredient-icons" | "topping-icons";
   entityId: string;
   fileBaseName?: string;
 };
