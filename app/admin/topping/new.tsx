@@ -26,7 +26,7 @@ import { router } from "expo-router";
 import { ToppingIconKey } from "@/src/constants/icons";
 import SelectField from "@/src/components/common/SelectField";
 import IconSelectField from "@/src/components/common/IconSelectField";
-import { tags } from "react-native-svg/lib/typescript/xmlTags";
+import ToggleRow from "@/src/components/common/ToggleRow";
 
 const NewToppingScreen = () => {
   const [name, setName] = useState("");

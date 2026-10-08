@@ -27,6 +27,7 @@ import Input from "@/src/components/ui/Input";
 import IconPickerModal from "@/src/components/home/IconPickerModal";
 import DrinkIcon from "@/src/components/common/DrinkIcon";
 import IngredientIcon from "@/src/components/common/IngredientIcon";
+import ToggleRow from "@/src/components/common/ToggleRow";
 import {
   DRINK_ICONS,
   INGREDIENT_ICONS,
@@ -116,8 +117,8 @@ function validateRecipeForm(values: RecipeFormValues) {
   }
 
   if (!Number.isFinite(calorie) || calorie < 0) {
-  errors.push("칼로리 값은 0 이상이어야 해요.");
-} 
+    errors.push("칼로리 값은 0 이상이어야 해요.");
+  }
 
   if (values.isWaterOnly && values.category !== "물") {
     warnings.push("수분 섭취로 인정되는데 카테고리가 물이 아니에요.");
@@ -157,10 +158,16 @@ const NewRecipeScreen = () => {
   const [category, setCategory] = useState<string>("other");
   const [drinkIconKey, setDrinkIconKey] = useState("");
   const [drinkIconUrl, setDrinkIconUrl] = useState<string | null>(null);
-  const [pendingDrinkIconUri, setPendingDrinkIconUri] = useState<string | null>(null);
+  const [pendingDrinkIconUri, setPendingDrinkIconUri] = useState<string | null>(
+    null,
+  );
   const [calendarIconKey, setCalendarIconKey] = useState("");
-  const [ingredientIconUrl, setIngredientIconUrl] = useState<string | null>(null);
-  const [pendingIngredientIconUri, setPendingIngredientIconUri] = useState<string | null>(null);
+  const [ingredientIconUrl, setIngredientIconUrl] = useState<string | null>(
+    null,
+  );
+  const [pendingIngredientIconUri, setPendingIngredientIconUri] = useState<
+    string | null
+  >(null);
   const [mlPerServing, setMlPerServing] = useState("");
   const [caffeineMgPerServing, setCaffeineMgPerServing] = useState("");
   const [sugarGPerServing, setSugarGPerServing] = useState("");
@@ -219,7 +226,8 @@ const NewRecipeScreen = () => {
     }
 
     let recipeId: string | null = null;
-    let saveStage: "create" | "drinkIcon" | "ingredientIcon" | "report" = "create";
+    let saveStage: "create" | "drinkIcon" | "ingredientIcon" | "report" =
+      "create";
 
     try {
       setSaving(true);
@@ -282,7 +290,10 @@ const NewRecipeScreen = () => {
       setValidationWarnings([]);
       router.back();
     } catch {
-      if ((saveStage === "drinkIcon" || saveStage === "ingredientIcon") && recipeId) {
+      if (
+        (saveStage === "drinkIcon" || saveStage === "ingredientIcon") &&
+        recipeId
+      ) {
         Toast.show({
           type: "error",
           text1: "레시피는 추가됐지만 아이콘 업로드는 실패했어요",
@@ -497,32 +508,42 @@ const NewRecipeScreen = () => {
 
           {validationErrors.length > 0 ? (
             <View style={styles.validationBoxError}>
-                <AppText preset='caption' style={styles.validationBoxTitleError}>
-                    저장 전에 확인해 주세요
-                </AppText>
+              <AppText preset="caption" style={styles.validationBoxTitleError}>
+                저장 전에 확인해 주세요
+              </AppText>
 
-                {validationErrors.map((message) => (
-                    <AppText key={message} preset='body' style={styles.validationBoxText}>
-                        • {message}
-                    </AppText>
-                ))}
+              {validationErrors.map((message) => (
+                <AppText
+                  key={message}
+                  preset="body"
+                  style={styles.validationBoxText}
+                >
+                  • {message}
+                </AppText>
+              ))}
             </View>
-          ): null}
-            
-            {validationWarnings.length > 0 ? (
+          ) : null}
+
+          {validationWarnings.length > 0 ? (
             <View style={styles.validationBoxWarning}>
-                <AppText preset='caption' style={styles.validationBoxTitleWarning}>
-                    참고하면 좋은 항목
-                </AppText>
+              <AppText
+                preset="caption"
+                style={styles.validationBoxTitleWarning}
+              >
+                참고하면 좋은 항목
+              </AppText>
 
-                {validationWarnings.map((message) => (
-                    <AppText key={message} preset='body' style={styles.validationBoxText}>
-                        • {message}
-                    </AppText>
-                ))}
+              {validationWarnings.map((message) => (
+                <AppText
+                  key={message}
+                  preset="body"
+                  style={styles.validationBoxText}
+                >
+                  • {message}
+                </AppText>
+              ))}
             </View>
-          ): null}
-          
+          ) : null}
 
           <Pressable
             style={[
@@ -576,7 +597,7 @@ const NewRecipeScreen = () => {
       ) : null}
     </SafeAreaView>
   );
-}
+};
 
 export default NewRecipeScreen;
 
@@ -589,29 +610,6 @@ function splitCommaText(text: string) {
 
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.map((v) => v.trim()).filter(Boolean)));
-}
-
-function ToggleRow({
-  label,
-  value,
-  onValueChange,
-}: {
-  label: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-}) {
-  return (
-    <View style={styles.toggleRow}>
-      <View style={styles.toggleLabelWrap}>
-        <AppText preset="body" style={styles.toggleLabel}>
-          {label}
-        </AppText>
-      </View>
-      <View style={styles.toggleSwitchWrap}>
-        <Switch value={value} onValueChange={onValueChange} />
-      </View>
-    </View>
-  );
 }
 
 function ChipInput({
@@ -856,25 +854,6 @@ const styles = StyleSheet.create({
   iconUploadHint: {
     color: COLORS.semantic.textSecondary,
   },
-  toggleRow: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  toggleLabelWrap: {
-    flex: 1,
-    justifyContent: "center",
-    marginRight: 12,
-    minHeight: 31,
-  },
-  toggleLabel: {
-    lineHeight: 20,
-  },
-  toggleSwitchWrap: {
-    height: 31,
-    justifyContent: "center",
-  },
   saveButton: {
     height: 50,
     borderRadius: 16,
@@ -891,8 +870,8 @@ const styles = StyleSheet.create({
   validationBoxError: {
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E7B6B6',
-    backgroundColor: '#FFF4F4',
+    borderColor: "#E7B6B6",
+    backgroundColor: "#FFF4F4",
     padding: 12,
     gap: 4,
   },
@@ -900,19 +879,19 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E6D4A8",
-    backgroundColor: '#FFF9EC',
+    backgroundColor: "#FFF9EC",
     padding: 12,
     gap: 4,
   },
-  validationBoxTitleError:  {
-    color: '#B24A4A',
+  validationBoxTitleError: {
+    color: "#B24A4A",
     marginBottom: 2,
   },
   validationBoxTitleWarning: {
-    color: '#8A6A1F',
+    color: "#8A6A1F",
     marginBottom: 2,
   },
   validationBoxText: {
-    color: COLORS.semantic.textSecondary
-  }
+    color: COLORS.semantic.textSecondary,
+  },
 });
