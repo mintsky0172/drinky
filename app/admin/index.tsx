@@ -109,6 +109,21 @@ const AdminScreen = () => {
 
           <View style={styles.itemDivider} />
 
+           <Pressable
+            style={styles.itemRow}
+            onPress={() => router.push("/admin/topping")}
+          >
+            <AppText preset="h3">토핑 관리</AppText>
+
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color={COLORS.semantic.textSecondary}
+            />
+          </Pressable>
+
+          <View style={styles.itemDivider} />
+
           <Pressable
             style={styles.itemRow}
             onPress={() => router.push("/admin/reports-and-inquiries")}

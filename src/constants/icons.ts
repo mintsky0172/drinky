@@ -53,16 +53,16 @@ export const INGREDIENT_ICONS = {
   red_bean: require("@/assets/icons/ingredients/red_bean.png"),
   passion_fruit: require("@/assets/icons/ingredients/passion_fruit.png"),
   plum: require("@/assets/icons/ingredients/plum.png"),
-  omija: require('@/assets/icons/ingredients/omija.png'),
-  pineapple: require('@/assets/icons/ingredients/pineapple.png'),
-  melon: require('@/assets/icons/ingredients/melon.png'),
-  pomegranate: require('@/assets/icons/ingredients/pomegranate.png'),
-  tomato: require('@/assets/icons/ingredients/tomato.png'),
-  pistachio: require('@/assets/icons/ingredients/pistachio.png'),
-  corn: require('@/assets/icons/ingredients/corn.png'),
-  watermelon: require('@/assets/icons/ingredients/watermelon.png'),
-  persimmon: require('@/assets/icons/ingredients/persimmon.png'),
-  ginger: require('@/assets/icons/ingredients/ginger.png')
+  omija: require("@/assets/icons/ingredients/omija.png"),
+  pineapple: require("@/assets/icons/ingredients/pineapple.png"),
+  melon: require("@/assets/icons/ingredients/melon.png"),
+  pomegranate: require("@/assets/icons/ingredients/pomegranate.png"),
+  tomato: require("@/assets/icons/ingredients/tomato.png"),
+  pistachio: require("@/assets/icons/ingredients/pistachio.png"),
+  corn: require("@/assets/icons/ingredients/corn.png"),
+  watermelon: require("@/assets/icons/ingredients/watermelon.png"),
+  persimmon: require("@/assets/icons/ingredients/persimmon.png"),
+  ginger: require("@/assets/icons/ingredients/ginger.png"),
 };
 
 export type IngredientIconKey = keyof typeof INGREDIENT_ICONS;
@@ -73,3 +73,13 @@ export const DRINK_ICON_KEYS_LATEST =
 export const INGREDIENT_ICON_KEYS = Object.keys(
   INGREDIENT_ICONS,
 ) as IngredientIconKey[];
+
+export const TOPPING_ICONS = {
+  shot: INGREDIENT_ICONS.coffee,
+  caramel: INGREDIENT_ICONS.caramel,
+  vanilla: INGREDIENT_ICONS.vanilla,
+  chocolate: INGREDIENT_ICONS.chocolate,
+  default: INGREDIENT_ICONS.default,
+};
+
+export type ToppingIconKey = keyof typeof TOPPING_ICONS;

@@ -1,4 +1,5 @@
 import { Timestamp } from "firebase/firestore";
+import { ToppingIconKey } from "../constants/icons";
 
 export type ToppingType = "generic" | "branded";
 
@@ -20,6 +21,8 @@ export type Topping = {
   type: ToppingType;
   nutritionType: NutritionType;
   category: ToppingCategory;
+
+  iconKey: ToppingIconKey | null;
 
   // branded일 때만 사용
   brand: string | null;
