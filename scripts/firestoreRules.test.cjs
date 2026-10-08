@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { initializeApp, deleteApp } = require("firebase/app");
 const {
   getFirestore, connectFirestoreEmulator, doc, setDoc, updateDoc,
-  getDoc, deleteDoc, deleteField, terminate,
+  getDoc, getDocs, collection, query, where, deleteDoc, deleteField, terminate,
 } = require("firebase/firestore");
 
 const projectId = "demo-drinky-rules";
@@ -115,4 +115,29 @@ test("guest inquiries retain their existing submission flow", async () => {
   });
   await denied(getDoc(doc(guest, "inquiries/guest-test")));
   assert.equal((await getDoc(doc(admin, "inquiries/guest-test"))).exists(), true);
+});
+
+test("only admins can create or update toppings; clients cannot delete them", async () => {
+  const topping = { name: "Caramel", isVisible: true };
+  await denied(setDoc(doc(guest, "toppings/guest-created"), topping));
+  await denied(setDoc(doc(user, "toppings/user-created"), topping));
+  const ref = doc(admin, "toppings/admin-created");
+  await setDoc(ref, topping);
+  await denied(updateDoc(doc(user, "toppings/admin-created"), { name: "Forged" }));
+  await updateDoc(ref, { name: "Updated caramel" });
+  await denied(deleteDoc(ref));
+});
+
+test("public users can read only visible toppings; admins can read all", async () => {
+  await setDoc(doc(admin, "toppings/public"), { name: "Public", isVisible: true });
+  await setDoc(doc(admin, "toppings/private"), { name: "Private", isVisible: false });
+  for (const db of [guest, user]) {
+    assert.equal((await getDoc(doc(db, "toppings/public"))).exists(), true);
+    await denied(getDoc(doc(db, "toppings/private")));
+    await denied(getDocs(collection(db, "toppings")));
+    const visible = await getDocs(query(collection(db, "toppings"), where("isVisible", "==", true)));
+    assert.equal(visible.empty, false);
+  }
+  assert.equal((await getDoc(doc(admin, "toppings/private"))).exists(), true);
+  assert.equal((await getDocs(collection(admin, "toppings"))).empty, false);
 });

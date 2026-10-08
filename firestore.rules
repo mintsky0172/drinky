@@ -50,6 +50,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    /* ---------- Toppings ---------- */
+    match /toppings/{toppingId} {
+      allow read: if isAdmin() || resource.data.isVisible == true;
+      allow create, update: if isAdmin();
+      allow delete: if false;
+    }
+
     // Admin SDK는 보안 규칙을 우회하므로 서버의 집계 작업은 계속 가능합니다.
     match /_recipePopularityEntries/{document=**} {
       allow read, write: if false;

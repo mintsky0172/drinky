@@ -19,6 +19,8 @@ import {
   DrinkIconKey,
   INGREDIENT_ICON_KEYS,
   IngredientIconKey,
+  TOPPING_ICONS,
+  ToppingIconKey,
 } from "@/src/constants/icons";
 import {
   DRINK_ICON_LABELS,
@@ -28,6 +30,10 @@ import DrinkIcon from "../common/DrinkIcon";
 import IngredientIcon from "../common/IngredientIcon";
 import { Ionicons } from "@expo/vector-icons";
 import TextField from "../ui/TextField";
+import { query } from "firebase/firestore";
+import { type } from "os";
+import { title } from "process";
+import ToppingIcon from "../common/ToppingIcon";
 
 type SharedProps = {
   visible: boolean;
@@ -50,77 +56,84 @@ type IngredientProps = SharedProps & {
   onSelect: (key: IngredientIconKey) => void;
 };
 
-type Props = DrinkProps | IngredientProps;
+type ToppingProps = SharedProps & {
+  type: "topping";
+  selectedKey: ToppingIconKey;
+  onSelect: (key: ToppingIconKey) => void;
+};
+
+type Props = DrinkProps | IngredientProps | ToppingProps;
 
 const DEFAULT_TITLES = {
   drink: "음료 아이콘 선택",
   ingredient: "대표 아이콘 선택",
+  topping: "토핑 아이콘 선택",
 } as const;
 
 const DEFAULT_SUBTITLES = {
   drink: "음료를 가장 잘 나타내는 아이콘을 골라 주세요.",
   ingredient: "오늘을 가장 잘 나타내는 아이콘은 무엇인가요?",
+  topping: "토핑을 가장 잘 나타내는 아이콘을 골라 주세요.",
 } as const;
 
-const INGREDIENT_SEARCH_ALIASES: Partial<
-  Record<IngredientIconKey, string[]>
-> = {
-  water: ["생수", "물"],
-  coffee: ["커피", "콜드브루"],
-  milk: ["우유", "라떼"],
-  default: ["기본", "없음"],
-  ice: ["얼음", "아이스"],
-  chocolate: ["초코", "초콜릿"],
-  white_chcolate: ["화이트초코", "화이트 초코", "화이트초콜릿"],
-  strawberry: ["딸기", "스트로베리"],
-  lemon: ["레몬"],
-  orange: ["오렌지"],
-  grapefruit: ["자몽"],
-  lime: ["라임"],
-  peach: ["복숭아"],
-  apple: ["사과"],
-  banana: ["바나나"],
-  blueberry: ["블루베리"],
-  cherry: ["체리"],
-  mango: ["망고"],
-  grape: ["포도"],
-  green_grape: ["청포도", "샤인머스캣"],
-  leaf: ["말차", "녹차", "그린티"],
-  mint: ["민트"],
-  teabag: ["티백", "차"],
-  fizzy: ["탄산", "소다", "사이다"],
-  vanilla: ["바닐라"],
-  yogurt: ["요거트"],
-  energy: ["에너지", "에너지드링크"],
-  honey: ["허니", "꿀"],
-  caramel: ["카라멜"],
-  hazelnut: ["헤이즐넛", "헤즐넛"],
-  cinnamon: ["시나몬", "계피"],
-  black_sesame: ["흑임자", "검은깨"],
-  hibiscus: ["히비스커스"],
-  lychee: ["리치"],
-  kiwi: ["키위"],
-  gold_kiwi: ["골드키위"],
-  coconut: ["코코넛"],
-  cookie: ["쿠키"],
-  sweet_potato: ["고구마"],
-  grain: ["곡물", "미숫가루"],
-  jujube: ["대추"],
-  maesil: ["매실"],
-  red_bean: ["팥", "단팥"],
-  passion_fruit: ["패션후르츠", "패션프루트"],
-  plum: ["자두"],
-  omija: ["오미자"],
-  pineapple: ["파인애플"],
-  melon: ["멜론"],
-  pomegranate: ["석류"],
-  tomato: ["토마토"],
-  pistachio: ["피스타치오"],
-  corn: ["옥수수"],
-  watermelon: ["수박"],
-  persimmon: ["감"],
-  ginger: ["생강", "진저"],
-};
+const INGREDIENT_SEARCH_ALIASES: Partial<Record<IngredientIconKey, string[]>> =
+  {
+    water: ["생수", "물"],
+    coffee: ["커피", "콜드브루"],
+    milk: ["우유", "라떼"],
+    default: ["기본", "없음"],
+    ice: ["얼음", "아이스"],
+    chocolate: ["초코", "초콜릿"],
+    white_chcolate: ["화이트초코", "화이트 초코", "화이트초콜릿"],
+    strawberry: ["딸기", "스트로베리"],
+    lemon: ["레몬"],
+    orange: ["오렌지"],
+    grapefruit: ["자몽"],
+    lime: ["라임"],
+    peach: ["복숭아"],
+    apple: ["사과"],
+    banana: ["바나나"],
+    blueberry: ["블루베리"],
+    cherry: ["체리"],
+    mango: ["망고"],
+    grape: ["포도"],
+    green_grape: ["청포도", "샤인머스캣"],
+    leaf: ["말차", "녹차", "그린티"],
+    mint: ["민트"],
+    teabag: ["티백", "차"],
+    fizzy: ["탄산", "소다", "사이다"],
+    vanilla: ["바닐라"],
+    yogurt: ["요거트"],
+    energy: ["에너지", "에너지드링크"],
+    honey: ["허니", "꿀"],
+    caramel: ["카라멜"],
+    hazelnut: ["헤이즐넛", "헤즐넛"],
+    cinnamon: ["시나몬", "계피"],
+    black_sesame: ["흑임자", "검은깨"],
+    hibiscus: ["히비스커스"],
+    lychee: ["리치"],
+    kiwi: ["키위"],
+    gold_kiwi: ["골드키위"],
+    coconut: ["코코넛"],
+    cookie: ["쿠키"],
+    sweet_potato: ["고구마"],
+    grain: ["곡물", "미숫가루"],
+    jujube: ["대추"],
+    maesil: ["매실"],
+    red_bean: ["팥", "단팥"],
+    passion_fruit: ["패션후르츠", "패션프루트"],
+    plum: ["자두"],
+    omija: ["오미자"],
+    pineapple: ["파인애플"],
+    melon: ["멜론"],
+    pomegranate: ["석류"],
+    tomato: ["토마토"],
+    pistachio: ["피스타치오"],
+    corn: ["옥수수"],
+    watermelon: ["수박"],
+    persimmon: ["감"],
+    ginger: ["생강", "진저"],
+  };
 
 const IconPickerModal = (props: Props) => {
   const {
@@ -142,9 +155,15 @@ const IconPickerModal = (props: Props) => {
       ? sortOrder === "latest"
         ? DRINK_ICON_KEYS_LATEST
         : DRINK_ICON_KEYS
-      : INGREDIENT_ICON_KEYS;
+      : type === "ingredient"
+        ? INGREDIENT_ICON_KEYS
+        : (Object.keys(TOPPING_ICONS) as ToppingIconKey[]);
   const labels: Readonly<Record<string, string>> =
-    type === "drink" ? DRINK_ICON_LABELS : INGREDIENT_ICON_LABELS;
+    type === "drink"
+      ? DRINK_ICON_LABELS
+      : type === "ingredient"
+        ? INGREDIENT_ICON_LABELS
+        : ({} as Record<string, string>);
   const resolvedTitle = title ?? DEFAULT_TITLES[type];
   const resolvedSubtitle = subtitle ?? DEFAULT_SUBTITLES[type];
 
@@ -156,11 +175,9 @@ const IconPickerModal = (props: Props) => {
       const label = labels[key] ?? "";
       const aliases =
         type === "ingredient"
-          ? INGREDIENT_SEARCH_ALIASES[key as IngredientIconKey] ?? []
+          ? (INGREDIENT_SEARCH_ALIASES[key as IngredientIconKey] ?? [])
           : [];
-      return `${key} ${label} ${aliases.join(" ")}`
-        .toLowerCase()
-        .includes(q);
+      return `${key} ${label} ${aliases.join(" ")}`.toLowerCase().includes(q);
     });
   }, [keys, labels, query, type]);
 
@@ -244,11 +261,13 @@ const IconPickerModal = (props: Props) => {
                 const icon =
                   type === "drink" ? (
                     <DrinkIcon iconKey={item as DrinkIconKey} size={34} />
-                  ) : (
+                  ) : type === "ingredient" ? (
                     <IngredientIcon
                       iconKey={item as IngredientIconKey}
                       size={34}
                     />
+                  ) : (
+                    <ToppingIcon iconKey={item as ToppingIconKey} size={34} />
                   );
 
                 return (
@@ -257,9 +276,11 @@ const IconPickerModal = (props: Props) => {
                       if (type === "drink") {
                         onSelect(item as DrinkIconKey);
                         return;
+                      } else if (type === "ingredient") {
+                        onSelect(item as IngredientIconKey);
+                      } else if (type === "topping") {
+                        onSelect(item as ToppingIconKey);
                       }
-
-                      onSelect(item as IngredientIconKey);
                     }}
                     style={[styles.cell, isSelected && styles.cellSelected]}
                   >

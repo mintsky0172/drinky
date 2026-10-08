@@ -27,6 +27,33 @@ import { ToppingIconKey } from "@/src/constants/icons";
 import SelectField from "@/src/components/common/SelectField";
 import IconSelectField from "@/src/components/common/IconSelectField";
 import ToggleRow from "@/src/components/common/ToggleRow";
+import ToppingIcon from "@/src/components/common/ToppingIcon";
+import { type } from "os";
+
+function validateToppingForm(values: {
+  name: string;
+  type: ToppingType;
+  brand: string;
+  servingLabel: string;
+}) {
+  const { name, type, brand, servingLabel } = values;
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!name.trim()) {
+    errors.push("토핑명을 입력해 주세요.");
+  }
+
+  if (type === "branded" && !brand.trim()) {
+    errors.push("브랜드명을 입력해 주세요.");
+  }
+
+  if (!servingLabel.trim()) {
+    errors.push("기준 단위를 입력해 주세요.");
+  }
+
+  return { errors, warnings };
+}
 
 const NewToppingScreen = () => {
   const [name, setName] = useState("");
@@ -48,10 +75,19 @@ const NewToppingScreen = () => {
   const [note, setNote] = useState("");
 
   const [isVisible, setIsVisible] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const [toppingIconKey, setToppingIconKey] =
     useState<ToppingIconKey>("default");
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+
+  const canSave =
+    name.trim() !== "" &&
+    servingLabel.trim() !== "" &&
+    (type !== "branded" || brand.trim() !== "");
 
   const parseNullableNumber = (value: string) => {
     if (value.trim() === "") return null;
@@ -80,6 +116,8 @@ const NewToppingScreen = () => {
 
     setIsVisible(true);
     setIsVisible(true);
+
+    setToppingIconKey("default");
   };
 
   const handleSubmit = async () => {
@@ -98,8 +136,18 @@ const NewToppingScreen = () => {
       return;
     }
 
+    const { errors, warnings } = validateToppingForm({
+      name,
+      type,
+      brand,
+      servingLabel,
+    });
+
+    setValidationErrors(errors);
+    setValidationWarnings(warnings);
+
     try {
-      setIsSubmitting(true);
+      setSaving(true);
 
       await addDoc(collection(db, "toppings"), {
         name: name.trim(),
@@ -128,6 +176,8 @@ const NewToppingScreen = () => {
 
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+
+        iconKey: toppingIconKey,
       });
 
       Alert.alert("등록 완료", "토핑을 등록했어요.");
@@ -138,7 +188,7 @@ const NewToppingScreen = () => {
 
       Alert.alert("등록 실패", "토핑 등록 중 오류가 발생했어요.");
     } finally {
-      setIsSubmitting(false);
+      setSaving(false);
     }
   };
 
@@ -188,8 +238,8 @@ const NewToppingScreen = () => {
               label="토핑 아이콘"
               value={toppingIconKey}
               placeholder="토핑 아이콘을 선택해 주세요"
-              icon=""
-              onPress={() => ""}
+              icon={<ToppingIcon iconKey={toppingIconKey} size={28} />}
+              onPress={() => setIconPickerOpen(true)}
             />
           </View>
 
@@ -310,7 +360,7 @@ const NewToppingScreen = () => {
               !canSave && styles.saveButtonInactive,
               saving && styles.saveButtonDisabled,
             ]}
-            onPress={handleSave}
+            onPress={handleSubmit}
             disabled={saving}
           >
             <AppText preset="h2">{saving ? "추가 중..." : "추가하기"}</AppText>
@@ -318,42 +368,16 @@ const NewToppingScreen = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {iconPickerTarget === "drink" ? (
-        <IconPickerModal
-          visible
-          type="drink"
-          sortOrder="latest"
-          selectedKey={resolveDrinkIconKey(drinkIconKey)}
-          onSelect={(key) => {
-            setDrinkIconKey(key);
-            setIconPickerTarget(null);
-          }}
-          onClose={() => setIconPickerTarget(null)}
-          onResetToDefault={() => {
-            setDrinkIconKey("");
-            setIconPickerTarget(null);
-          }}
-          title="음료 아이콘 선택"
-          subtitle="이 음료를 가장 잘 나타내는 아이콘을 골라 주세요."
-        />
-      ) : iconPickerTarget === "ingredient" ? (
-        <IconPickerModal
-          visible
-          type="ingredient"
-          selectedKey={resolveIngredientIconKey(calendarIconKey)}
-          onSelect={(key) => {
-            setCalendarIconKey(key);
-            setIconPickerTarget(null);
-          }}
-          onClose={() => setIconPickerTarget(null)}
-          onResetToDefault={() => {
-            setCalendarIconKey("");
-            setIconPickerTarget(null);
-          }}
-          title="재료 아이콘 선택"
-          subtitle="달력과 홈에서 보여줄 대표 아이콘을 골라 주세요."
-        />
-      ) : null}
+      <IconPickerModal
+        visible={iconPickerOpen}
+        type="topping"
+        selectedKey={toppingIconKey}
+        onSelect={(key) => {
+          setToppingIconKey(key);
+          setIconPickerOpen(false);
+        }}
+        onClose={() => setIconPickerOpen(false)}
+      />
     </SafeAreaView>
   );
 };
