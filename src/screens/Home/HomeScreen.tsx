@@ -54,6 +54,7 @@ import {
 } from "@/src/features/entries/repositories/guestDailySummariesRepository";
 import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRepository";
 import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
+import { hasUnknownToppingNutritiion } from "@/src/features/toppings/hasUnknownToppingNutrition";
 
 type SummaryCard = {
   label: "수분💧" | "카페인☕️" | "당류🍭" | "열량🔥";
@@ -282,6 +283,7 @@ function buildOverviewFromEntries(entries: any[]) {
     })),
     topIconKey,
     topIconUrl,
+    hasUnknownNutrition: hasUnknownToppingNutritiion(entries),
   };
 }
 
@@ -316,6 +318,7 @@ const HomeScreen = () => {
 
   const [goals, setGoals] = useState<UserGoals>(DEFAULT_GOALS);
 
+  const [hasUnknownNutrition, setHasUnknownNutrition] = useState(false);
   const [nutritionToolTipOpen, setNutritionToolTipOpen] = useState(false);
 
   const cards: SummaryCard[] = useMemo(
@@ -352,7 +355,10 @@ const HomeScreen = () => {
     const waterLevel = getLevelWater(totals.waterMl, goals.waterMl);
     const caffeineLevel = getLevelOptional(totals.caffeineMg, goals.caffeineMg);
     const sugarLevel = getLevelOptional(totals.sugarG, goals.sugarG);
-    const calorieLevel = getLevelOptional(totals.calorieKcal, goals.calorieKcal);
+    const calorieLevel = getLevelOptional(
+      totals.calorieKcal,
+      goals.calorieKcal,
+    );
 
     return (
       waterLevel === "적절" &&
@@ -441,6 +447,7 @@ const HomeScreen = () => {
         const overview = buildOverviewFromEntries(entries);
         setTodayDrinks(overview.todayDrinks);
         setTotals(overview.totals);
+        setHasUnknownNutrition(overview.hasUnknownNutrition);
         setTopIconKey(overview.topIconKey);
         setTopIconUrl(overview.topIconUrl);
         setGoals(guestGoals);
@@ -557,6 +564,7 @@ const HomeScreen = () => {
           dailyEntryDocs.map((entryDoc) => entryDoc.data()),
         );
         setTotals(overview.totals);
+        setHasUnknownNutrition(overview.hasUnknownNutrition);
         setTodayDrinks(overview.todayDrinks);
         setTopIconKey(overview.topIconKey);
         setTopIconUrl(overview.topIconUrl);
@@ -567,6 +575,7 @@ const HomeScreen = () => {
         setTotals({ waterMl: 0, caffeineMg: 0, sugarG: 0, calorieKcal: 0 });
         setTopIconKey(null);
         setTopIconUrl(null);
+        setHasUnknownNutrition(false);
       },
     );
 
@@ -904,6 +913,17 @@ const HomeScreen = () => {
               </View>
             ))}
           </View>
+
+          {hasUnknownNutrition && (
+            <AppText
+              style={styles.unknownHint}
+              preset="caption"
+              color={COLORS.semantic.textSecondary}
+            >
+              일부 토핑의 영양정보가 없어 확인된 값만 합산했어요.
+            </AppText>
+          )}
+
           {/* 오늘의 요약 */}
           <Text style={styles.statusLine}>{summaryText}</Text>
           {/* 오늘의 한줄 */}
@@ -1012,7 +1032,6 @@ const HomeScreen = () => {
               </View>
             </View>
           </Modal>
-
         </ScrollView>
       </KeyboardAvoidingView>
       <View pointerEvents="box-none" style={styles.floatingActionArea}>
@@ -1025,7 +1044,10 @@ const HomeScreen = () => {
           ]}
           onPress={onPressWrite}
         >
-          <Image source={require("@/assets/icons/etc/plus.png")} style={styles.floatingActionIcon} />
+          <Image
+            source={require("@/assets/icons/etc/plus.png")}
+            style={styles.floatingActionIcon}
+          />
         </Pressable>
       </View>
     </SafeAreaView>
@@ -1389,5 +1411,10 @@ const styles = StyleSheet.create({
   reviewPromptPrimaryLabel: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
+  },
+  unknownHint: {
+    marginTop: 5,
+    opacity: 0.7,
+    textAlign: "center",
   },
 });

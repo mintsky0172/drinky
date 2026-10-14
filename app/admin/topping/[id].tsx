@@ -1,14 +1,8 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import { useLocalSearchParams } from "expo-router";
+import ToppingFormScreen from "@/src/screens/admin/ToppingFormScreen";
 
-const ToppingDetailScreen = () => {
-  return (
-    <View>
-      <Text>Topping Detail Screen</Text>
-    </View>
-  )
+export default function ToppingDetailScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const toppingId = Array.isArray(id) ? id[0] : id;
+  return <ToppingFormScreen key={toppingId} toppingId={toppingId} />;
 }
-
-export default ToppingDetailScreen
-
-const styles = StyleSheet.create({})

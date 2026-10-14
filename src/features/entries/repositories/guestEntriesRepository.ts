@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { SizeLabel, Unit } from "@/src/types/drinky";
+import type { EntryTopping } from "@/src/types/topping";
 
 const GUEST_ENTRIES_KEY = "guestEntries";
 
@@ -27,15 +28,16 @@ export type GuestEntry = {
   updatedAt: string;
   dateKey: string;
   memo?: string | null;
+  toppings?: EntryTopping[];
 };
 
 async function readAllGuestEntries(): Promise<GuestEntry[]> {
-    const raw = await AsyncStorage.getItem(GUEST_ENTRIES_KEY);
-    return raw ? JSON.parse(raw) : [];
+  const raw = await AsyncStorage.getItem(GUEST_ENTRIES_KEY);
+  return raw ? JSON.parse(raw) : [];
 }
 
 async function writeAllGuestEntries(entries: GuestEntry[]) {
-    await AsyncStorage.setItem(GUEST_ENTRIES_KEY, JSON.stringify(entries));
+  await AsyncStorage.setItem(GUEST_ENTRIES_KEY, JSON.stringify(entries));
 }
 
 export async function saveGuestEntry(entry: GuestEntry) {
@@ -47,7 +49,8 @@ export async function saveGuestEntry(entry: GuestEntry) {
 export async function listGuestEntries() {
   const entries = await readAllGuestEntries();
   return entries.sort(
-    (a, b) => new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
+    (a, b) =>
+      new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
   );
 }
 
@@ -56,7 +59,8 @@ export async function listGuestEntriesByDateKey(dateKey: string) {
   return entries
     .filter((entry) => entry.dateKey === dateKey)
     .sort(
-      (a, b) => new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
+      (a, b) =>
+        new Date(b.consumedAt).getTime() - new Date(a.consumedAt).getTime(),
     );
 }
 

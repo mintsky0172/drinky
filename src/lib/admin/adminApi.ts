@@ -1,5 +1,5 @@
 import {
-    addDoc,
+  addDoc,
   arrayUnion,
   collection,
   doc,
@@ -14,6 +14,8 @@ import {
 import { db } from "../firebase";
 import { InquiryDoc, ReportDoc } from "@/src/types/admin";
 import { uploadIconToStorage } from "@/src/features/admin/uploadDrinkIcon";
+import type { EntryTopping } from "@/src/types/topping";
+import { calculateToppingNutrition } from "@/src/features/toppings/caculateToppingNutrition";
 
 export type Recipe = {
   id: string;
@@ -61,24 +63,24 @@ type UpdateRecipeInput = {
 };
 
 type CreateRecipeInput = {
-    name: string;
-    brand?: string;
-    category?: string;
-    drinkIconKey?: string;
-    iconUrl?: string;
-    calendarIconKey?: string;
-    ingredientIconUrl?: string;
-    mlPerServing: number;
-    caffeineMgPerServing: number;
-    sugarGPerServing: number;
-    calorieKcalPerServing: number;
-    isWaterOnly: boolean;
-    isPublic: boolean;
-    normalizedName?: string;
-    aliases?: string[];
-    searchKeywords?: string[];
-    tags?: string[];
-}
+  name: string;
+  brand?: string;
+  category?: string;
+  drinkIconKey?: string;
+  iconUrl?: string;
+  calendarIconKey?: string;
+  ingredientIconUrl?: string;
+  mlPerServing: number;
+  caffeineMgPerServing: number;
+  sugarGPerServing: number;
+  calorieKcalPerServing: number;
+  isWaterOnly: boolean;
+  isPublic: boolean;
+  normalizedName?: string;
+  aliases?: string[];
+  searchKeywords?: string[];
+  tags?: string[];
+};
 
 export async function getUserRole(uid: string) {
   const ref = doc(db, "users", uid);
@@ -222,10 +224,7 @@ export async function updateRecipe(
   );
 }
 
-function getServingRatio(
-  entry: Record<string, unknown>,
-  mlPerServing: number,
-) {
+function getServingRatio(entry: Record<string, unknown>, mlPerServing: number) {
   const servings = Number(entry.servings ?? 0);
   if (entry.unit === "cup" && Number.isFinite(servings) && servings > 0) {
     return servings;
@@ -259,10 +258,12 @@ async function recalculateRecipeEntryCalories(
     snapshot.docs.slice(i, i + 450).forEach((entryDoc) => {
       const entry = entryDoc.data() as Record<string, unknown>;
       const servingRatio = getServingRatio(entry, servingMl);
+      const toppings = (entry.toppings ?? []) as EntryTopping[];
+      const toppingNutrition = calculateToppingNutrition(toppings);
 
       batch.update(entryDoc.ref, {
         calorieKcalPerServing: calories,
-        totalCalorieKcal: Math.round(calories * servingRatio),
+        totalCalorieKcal: Math.round(calories * servingRatio + toppingNutrition.calories),
         updatedAt: serverTimestamp(),
       });
     });
@@ -273,20 +274,17 @@ async function recalculateRecipeEntryCalories(
   return snapshot.size;
 }
 
-export async function createRecipe(
-    input: CreateRecipeInput,
-    adminUid: string,
-) {
-    const payload = {
-        ...input,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        updatedBy: adminUid,
-        source: 'admin',
-    };
+export async function createRecipe(input: CreateRecipeInput, adminUid: string) {
+  const payload = {
+    ...input,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    updatedBy: adminUid,
+    source: "admin",
+  };
 
-    const ref = await addDoc(collection(db, 'recipes'), payload);
-    return ref.id;
+  const ref = await addDoc(collection(db, "recipes"), payload);
+  return ref.id;
 }
 
 export async function saveDrinkIcon(
@@ -297,9 +295,9 @@ export async function saveDrinkIcon(
 ) {
   const { iconUrl, storagePath } = await uploadIconToStorage({
     uri: imageUri,
-    folder: 'drink-icons',
+    folder: "drink-icons",
     entityId: recipeId,
-    fileBaseName: iconKey
+    fileBaseName: iconKey,
   });
 
   await updateDoc(doc(db, "recipes", recipeId), {
@@ -322,7 +320,7 @@ export async function saveIngredientIcon(
 ) {
   const { iconUrl, storagePath } = await uploadIconToStorage({
     uri: imageUri,
-    folder: 'ingredient-icons',
+    folder: "ingredient-icons",
     entityId: recipeId,
     fileBaseName: iconKey,
   });

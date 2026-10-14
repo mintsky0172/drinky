@@ -65,6 +65,7 @@ function toGuestEntry(entry: EntryWritePayload): GuestEntry {
     updatedAt: new Date().toISOString(),
     dateKey: entry.dateKey,
     memo: entry.memo ?? null,
+    toppings: entry.toppings ?? [],
   };
 }
 

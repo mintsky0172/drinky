@@ -1,13 +1,11 @@
-import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  writeBatch,
-} from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, writeBatch } from "firebase/firestore";
 
 import { db } from "@/src/lib/firebase";
 import { DEFAULT_GOALS, ensureUserDoc, type UserGoals } from "@/src/lib/user";
-import { getSessionMode, setAuthenticatedMode } from "@/src/features/auth/session";
+import {
+  getSessionMode,
+  setAuthenticatedMode,
+} from "@/src/features/auth/session";
 import {
   clearGuestDailySummaries,
   listGuestDailySummariesByDateRange,
@@ -50,7 +48,10 @@ async function migrateGuestDataToUser(uid: string) {
 
   const monthStart = "0000-01-01";
   const monthEnd = "9999-12-31";
-  const summaries = await listGuestDailySummariesByDateRange(monthStart, monthEnd);
+  const summaries = await listGuestDailySummariesByDateRange(
+    monthStart,
+    monthEnd,
+  );
   const hasMeaningfulSummary = summaries.some(
     (summary) =>
       Boolean(summary.oneLine?.trim()) ||
@@ -97,6 +98,7 @@ async function migrateGuestDataToUser(uid: string) {
       totalCalorieKcal: entry.totalCalorieKcal ?? 0,
       waterMl: entry.waterMl,
       memo: entry.memo ?? null,
+      toppings: entry.toppings ?? [],
     });
   });
 
@@ -118,7 +120,9 @@ async function migrateGuestDataToUser(uid: string) {
 
   const userRef = doc(db, "users", uid);
   const userSnap = await getDoc(userRef);
-  const existingGoals = userSnap.data()?.goals as Partial<UserGoals> | undefined;
+  const existingGoals = userSnap.data()?.goals as
+    | Partial<UserGoals>
+    | undefined;
 
   if (isDefaultGoals(existingGoals) && !isDefaultGoals(guestGoals)) {
     batch.set(

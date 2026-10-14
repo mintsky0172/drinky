@@ -2,6 +2,8 @@ import { cert, initializeApp } from "firebase-admin/app";
 import { FieldValue, getFirestore } from "firebase-admin/firestore";
 import * as fs from "fs";
 import * as path from "path";
+import type { EntryTopping } from "@/src/types/topping";
+import { calculateToppingNutrition } from "@/src/features/toppings/caculateToppingNutrition";
 
 function readJson<T>(filePath: string): T {
   return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
@@ -20,11 +22,18 @@ function getServingRatio(entry: Record<string, unknown>, mlPerServing: number) {
 async function main() {
   const recipeId = process.argv[2];
   if (!recipeId) {
-    throw new Error("Usage: npm run entries:calories:recalculate -- <recipeId>");
+    throw new Error(
+      "Usage: npm run entries:calories:recalculate -- <recipeId>",
+    );
   }
 
-  const serviceAccountPath = path.resolve(process.cwd(), "seed/serviceAccountKey.json");
-  initializeApp({ credential: cert(readJson<Record<string, unknown>>(serviceAccountPath)) });
+  const serviceAccountPath = path.resolve(
+    process.cwd(),
+    "seed/serviceAccountKey.json",
+  );
+  initializeApp({
+    credential: cert(readJson<Record<string, unknown>>(serviceAccountPath)),
+  });
 
   const db = getFirestore();
   const recipeSnap = await db.collection("recipes").doc(recipeId).get();
@@ -47,10 +56,13 @@ async function main() {
 
       entriesSnap.docs.slice(i, i + 450).forEach((entrySnap) => {
         const entry = entrySnap.data() as Record<string, unknown>;
+        const toppings = (entry.toppings ?? []) as EntryTopping[];
+        const toppingNutrition = calculateToppingNutrition(toppings);
         batch.update(entrySnap.ref, {
           calorieKcalPerServing: calories,
           totalCalorieKcal: Math.round(
-            calories * getServingRatio(entry, mlPerServing),
+            calories * getServingRatio(entry, mlPerServing) +
+              toppingNutrition.calories,
           ),
           updatedAt: FieldValue.serverTimestamp(),
         });

@@ -1,4 +1,5 @@
 import {
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -8,53 +9,65 @@ import {
 } from "react-native";
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { collection, onSnapshot } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  doc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import AppText from "@/src/components/ui/AppText";
 import TextField from "@/src/components/ui/TextField";
 import { useAuth } from "@/src/providers/AuthProvider";
-import {
-  getUserRole,
-  setRecipePublic,
-  updateReportStatus,
-} from "@/src/lib/admin/adminApi";
+import { getUserRole } from "@/src/lib/admin/adminApi";
 import { COLORS } from "@/src/constants/colors";
 import { db } from "@/src/lib/firebase";
-import DrinkIcon from "@/src/components/common/DrinkIcon";
-import { DrinkIconKey } from "@/src/constants/icons";
+import { ToppingIconKey } from "@/src/constants/icons";
+import ToppingIcon from "@/src/components/common/ToppingIcon";
+import { ToppingType } from "@/src/types/topping";
 
-type RecipeItem = {
+type ToppingItem = {
   id: string;
   name: string;
   brand?: string;
   category?: string;
-  isPublic?: boolean;
+  isVisible?: boolean;
   updatedAt?: any;
   createdAt?: any;
   registrationOrder?: number;
-  drinkIconKey?: DrinkIconKey;
+  iconKey?: ToppingIconKey;
   iconUrl?: string | null;
+  type: ToppingType;
 };
 
 type VisibilityFilter = "all" | "public" | "hidden";
 
-type SortOption = "name" | "brand" | "category" | "createdAtNew" | "createdAtOld";
+type TypeFilter = "all" | ToppingType;
+
+type SortOption =
+  | "name"
+  | "brand"
+  | "category"
+  | "createdAtNew"
+  | "createdAtOld";
+
+const TYPE_OPTIONS: { key: TypeFilter; label: string }[] = [
+  { key: "all", label: "전체" },
+  { key: "generic", label: "일반 토핑" },
+  { key: "branded", label: "브랜드 토핑" },
+];
 
 const CATEGORY_OPTIONS = [
   "전체",
+  "펄",
+  "젤리",
+  "시럽",
+  "샷",
+  "폼",
+  "휘핑크림",
   "기타",
-  "라떼",
-  "물",
-  "쉐이크",
-  "스무디",
-  "에이드",
-  "우유",
-  "주스",
-  "차",
-  "커피",
-  "탄산",
-  "프라페",
 ] as const;
 
 const CATEGORY_VALUE_MAP: Record<
@@ -62,33 +75,23 @@ const CATEGORY_VALUE_MAP: Record<
   string | null
 > = {
   전체: null,
+  펄: "pearl",
+  젤리: "jelly",
+  시럽: "syrup",
+  샷: "shot",
+  폼: "foam",
+  휘핑크림: "whippedCream",
   기타: "other",
-  라떼: "latte",
-  물: "water",
-  쉐이크: "shake",
-  스무디: "smoothie",
-  에이드: "ade",
-  우유: "milk",
-  주스: "juice",
-  차: "tea",
-  커피: "coffee",
-  탄산: "carbonated",
-  프라페: "frappe",
 };
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
+  pearl: "펄",
+  jelly: "젤리",
+  syrup: "시럽",
+  shot: "샷",
+  foam: "폼",
+  whippedCream: "휘핑크림",
   other: "기타",
-  latte: "라떼",
-  water: "물",
-  shake: "쉐이크",
-  smoothie: "스무디",
-  ade: "에이드",
-  milk: "우유",
-  juice: "주스",
-  tea: "차",
-  coffee: "커피",
-  carbonated: "탄산",
-  frappe: "프라페",
 };
 
 const BRAND_LABEL_MAP: Record<string, string> = {
@@ -98,7 +101,7 @@ const BRAND_LABEL_MAP: Record<string, string> = {
   paik: "빽다방",
   gongcha: "공차",
   oozy: "우지커피",
-  twosome: '투썸플레이스',
+  twosome: "투썸플레이스",
 };
 
 const SORT_OPTIONS: { key: SortOption; label: string }[] = [
@@ -106,7 +109,7 @@ const SORT_OPTIONS: { key: SortOption; label: string }[] = [
   { key: "brand", label: "브랜드순" },
   { key: "category", label: "카테고리순" },
   { key: "createdAtNew", label: "최근 등록순" },
-  { key: "createdAtOld", label: "오래된 등록순"}
+  { key: "createdAtOld", label: "오래된 등록순" },
 ];
 
 function getCategoryLabel(category?: string) {
@@ -139,7 +142,8 @@ function getCreatedAtMs(createdAt: unknown) {
 }
 
 function getRegistrationOrder(registrationOrder: unknown) {
-  return typeof registrationOrder === "number" && Number.isFinite(registrationOrder)
+  return typeof registrationOrder === "number" &&
+    Number.isFinite(registrationOrder)
     ? registrationOrder
     : Number.MAX_SAFE_INTEGER;
 }
@@ -165,7 +169,7 @@ const AdminToppingScreen = () => {
   const [loadingRole, setLoadingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [recipes, setRecipes] = useState<RecipeItem[]>([]);
+  const [recipes, setRecipes] = useState<ToppingItem[]>([]);
 
   const initialSearch = [params.prefillName].filter(Boolean).join(" ").trim();
   const [search, setSearch] = useState(initialSearch);
@@ -174,6 +178,7 @@ const AdminToppingScreen = () => {
     useState<(typeof CATEGORY_OPTIONS)[number]>("전체");
   const [visibilityFilter, setVisibilityFilter] =
     useState<VisibilityFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -199,22 +204,23 @@ const AdminToppingScreen = () => {
   useEffect(() => {
     if (!isAdmin) return;
 
-    const recipesRef = collection(db, "recipes");
+    const recipesRef = collection(db, "toppings");
 
     const unsubscribe = onSnapshot(recipesRef, (snapshot) => {
-      const next: RecipeItem[] = snapshot.docs.map((docSnap) => {
+      const next: ToppingItem[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data() as any;
         return {
           id: docSnap.id,
           name: data.name ?? "이름 없음",
           brand: data.brand ?? "",
           category: data.category ?? "",
-          isPublic: data.isPublic ?? true,
+          isVisible: data.isVisible ?? true,
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
           registrationOrder: data.registrationOrder,
-          drinkIconKey: data.drinkIconKey ?? "default",
+          iconKey: data.iconKey ?? "default",
           iconUrl: data.iconUrl ?? null,
+          type: data.type ?? "generic",
         };
       });
 
@@ -234,13 +240,16 @@ const AdminToppingScreen = () => {
           selectedCategoryValue === null ||
           item.category === selectedCategoryValue;
 
-        const isPublic = item.isPublic !== false;
+        const isVisible = item.isVisible !== false;
         const matchesVisibility =
           visibilityFilter === "all" ||
-          (visibilityFilter === "public" && isPublic) ||
-          (visibilityFilter === "hidden" && !isPublic);
+          (visibilityFilter === "public" && isVisible) ||
+          (visibilityFilter === "hidden" && !isVisible);
 
-        if (!matchesCategory || !matchesVisibility) return false;
+        const matchesType = typeFilter === "all" || item.type === typeFilter;
+
+        if (!matchesCategory || !matchesVisibility || !matchesType)
+          return false;
         if (!q) return true;
 
         return (
@@ -257,14 +266,16 @@ const AdminToppingScreen = () => {
         case "category":
           return (a.category ?? "").localeCompare(b.category ?? "", "ko");
         case "createdAtNew": {
-          const timeDiff = getCreatedAtMs(b.createdAt) - getCreatedAtMs(a.createdAt);
+          const timeDiff =
+            getCreatedAtMs(b.createdAt) - getCreatedAtMs(a.createdAt);
           const orderDiff =
             getRegistrationOrder(b.registrationOrder) -
             getRegistrationOrder(a.registrationOrder);
           return timeDiff || orderDiff || a.name.localeCompare(b.name, "ko");
         }
         case "createdAtOld": {
-          const timeDiff = getCreatedAtMs(a.createdAt) - getCreatedAtMs(b.createdAt);
+          const timeDiff =
+            getCreatedAtMs(a.createdAt) - getCreatedAtMs(b.createdAt);
           const orderDiff =
             getRegistrationOrder(a.registrationOrder) -
             getRegistrationOrder(b.registrationOrder);
@@ -277,20 +288,20 @@ const AdminToppingScreen = () => {
     });
 
     return sorted;
-  }, [recipes, search, selectedCategory, visibilityFilter, sortBy]);
+  }, [recipes, search, selectedCategory, visibilityFilter, typeFilter, sortBy]);
 
-  const handleTogglePublic = async (item: RecipeItem) => {
+  const handleTogglePublic = async (item: ToppingItem) => {
     if (!user) return;
 
     try {
       setTogglingId(item.id);
-      await setRecipePublic(item.id, !(item.isPublic ?? true), user.uid);
-      if (reportIdParam) {
-        await updateReportStatus(reportIdParam, {
-          status: "done",
-          adminMemo: "제보를 통해 수정 완료",
-        });
-      }
+      await updateDoc(doc(db, "toppings", item.id), {
+        isVisible: !item.isVisible,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (error) {
+      console.error(error);
+      Alert.alert("변경 실패", "공개 상태를 변경하지 못했어요.");
     } finally {
       setTogglingId(null);
     }
@@ -373,7 +384,7 @@ const AdminToppingScreen = () => {
               <TextField
                 value={search}
                 onChangeText={setSearch}
-                placeholder="브랜드명 또는 음료명 검색"
+                placeholder="브랜드명 또는 토핑명 검색"
                 placeholderTextColor={COLORS.semantic.textMuted}
                 style={styles.searchInput}
                 rightIcon={
@@ -411,6 +422,39 @@ const AdminToppingScreen = () => {
                         ]}
                       >
                         {category}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={[styles.sectionCard, { marginBottom: 14 }]}>
+              <AppText preset="h2" style={styles.sectionTitle}>
+                토핑 종류
+              </AppText>
+
+              <View style={styles.categoryWrap}>
+                {TYPE_OPTIONS.map((option) => {
+                  const selected = typeFilter === option.key;
+
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[
+                        styles.categoryChip,
+                        selected && styles.categoryChipActive,
+                      ]}
+                      onPress={() => setTypeFilter(option.key)}
+                    >
+                      <AppText
+                        preset="body"
+                        style={[
+                          styles.categoryChipText,
+                          selected && styles.categoryChipTextActive,
+                        ]}
+                      >
+                        {option.label}
                       </AppText>
                     </Pressable>
                   );
@@ -494,7 +538,7 @@ const AdminToppingScreen = () => {
         ListEmptyComponent={
           <View style={styles.menuCardEmpty}>
             <AppText preset="h3" style={styles.emptyText}>
-              검색 조건에 맞는 음료가 없어요.
+              검색 조건에 맞는 토핑이 없어요.
             </AppText>
           </View>
         }
@@ -511,14 +555,14 @@ const AdminToppingScreen = () => {
                 if (reportIdParam) return;
 
                 router.push({
-                  pathname: "/admin/recipes/[id]",
+                  pathname: "/admin/topping/[id]",
                   params: { id: item.id },
                 });
               }}
             >
               <View style={styles.recipeMain}>
-                <DrinkIcon
-                  iconKey={item.drinkIconKey}
+                <ToppingIcon
+                  iconKey={item.iconKey}
                   iconUrl={item.iconUrl}
                   size={28}
                 />
@@ -531,28 +575,27 @@ const AdminToppingScreen = () => {
                   {getCategoryLabel(item.category)}
                 </AppText>
 
-              <View style={styles.footerRow}>
+                <View style={styles.footerRow}>
                   <View
-                  style={[
-                    styles.publicBadge,
-                    item.isPublic === false
-                      ? styles.publicBadgeOff
-                      : styles.publicBadgeOn,
-                  ]}
-                >
-                  <AppText preset="body" style={styles.publicBadgeText}>
-                    {item.isPublic === false ? "숨김" : "공개"}
+                    style={[
+                      styles.publicBadge,
+                      item.isVisible === false
+                        ? styles.publicBadgeOff
+                        : styles.publicBadgeOn,
+                    ]}
+                  >
+                    <AppText preset="body" style={styles.publicBadgeText}>
+                      {item.isVisible === false ? "숨김" : "공개"}
+                    </AppText>
+                  </View>
+                  <AppText preset="caption" style={styles.recipeMeta}>
+                    수정일: {formatDate(item.updatedAt)}
                   </AppText>
                 </View>
-                <AppText preset="caption" style={styles.recipeMeta}>
-                  수정일: {formatDate(item.updatedAt)}
-                </AppText>
-              </View>
-              
               </View>
 
               <Switch
-                value={item.isPublic !== false}
+                value={item.isVisible !== false}
                 onValueChange={() => handleTogglePublic(item)}
                 disabled={togglingId === item.id}
               />
@@ -778,10 +821,10 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   footerRow: {
-    width:'100%',
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    gap: 10
-  }
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    gap: 10,
+  },
 });

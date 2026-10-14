@@ -21,13 +21,7 @@ import { DEFAULT_GOALS, type UserGoals } from "@/src/lib/user";
 import { useAuth } from "@/src/providers/AuthProvider";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -43,6 +37,9 @@ import DrinkIcon from "@/src/components/common/DrinkIcon";
 import { deleteEntry, listEntries } from "@/src/features/entries/entriesApi";
 import { listGuestDailySummariesByDateRange } from "@/src/features/entries/repositories/guestDailySummariesRepository";
 import { getGuestGoals } from "@/src/features/entries/repositories/guestGoalsRepository";
+import type { EntryTopping } from "@/src/types/topping";
+import { hasUnknownToppingNutritiion } from "@/src/features/toppings/hasUnknownToppingNutrition";
+import { cert } from "firebase-admin/app";
 
 type EntryRecord = {
   id: string;
@@ -61,6 +58,7 @@ type EntryRecord = {
   calendarIconUrl?: string | null;
   unit: "cup" | "ml";
   servings?: number;
+  toppings?: EntryTopping[];
 };
 
 type RecipeLookupItem = {
@@ -115,6 +113,7 @@ function toEntryRecord(raw: any): EntryRecord {
     calendarIconUrl: raw.calendarIconUrl ?? null,
     unit: raw.unit ?? "cup",
     servings: Number(raw.servings ?? 0),
+    toppings: raw.toppings ?? [],
   };
 }
 
@@ -249,7 +248,8 @@ function getGoalSummaryText(statuses: ("달성" | "거의" | "부족")[]) {
   }
 
   if (
-    statuses.filter((status) => status === "달성").length >= Math.ceil(statuses.length * 2 / 3) ||
+    statuses.filter((status) => status === "달성").length >=
+      Math.ceil((statuses.length * 2) / 3) ||
     statuses.includes("거의")
   ) {
     return "목표에 거의 가까워졌어요.";
@@ -294,7 +294,6 @@ function Calendar() {
     () => toDateKey(selectedDate),
     [selectedDate],
   );
-
 
   useEffect(() => {
     const recipesRef = collection(db, "recipes");
@@ -409,6 +408,7 @@ function Calendar() {
             calendarIconUrl: data.calendarIconUrl ?? null,
             unit: data.unit,
             servings: Number(data.servings ?? 0),
+            toppings: data.toppings ?? [],
           };
 
           if (!nextMap[entry.dateKey]) {
@@ -534,6 +534,8 @@ function Calendar() {
     () => entriesByDateKey[selectedDateKey] ?? [],
     [entriesByDateKey, selectedDateKey],
   );
+
+  const hasUnknownNutrition = hasUnknownToppingNutritiion(selectedEntries);
 
   const selectedTotals = useMemo(() => {
     return selectedEntries.reduce<DayTotals>((acc, entry) => {
@@ -664,7 +666,7 @@ function Calendar() {
           const iconUrl =
             typeof entry.calendarIconUrl === "string"
               ? entry.calendarIconUrl
-              : matchedRecipe?.ingredientIconUrl ?? null;
+              : (matchedRecipe?.ingredientIconUrl ?? null);
           const ml = Number(entry.totalMl ?? 0);
           const weight = entry.isWaterOnly ? 0.7 : 1;
           const score = ml * weight;
@@ -876,34 +878,36 @@ function Calendar() {
 
           <View style={styles.monthSummaryGrid}>
             <View style={styles.metricRow}>
-            <View style={[styles.metricCard, styles.metricCardBlue]}>
-              <AppText style={styles.metricValue}>
-                {monthTotals.avgWaterMl.toLocaleString()} mL
-              </AppText>
-              <AppText style={styles.metricLabel}>일평균{"\n"}수분💧</AppText>
-            </View>
+              <View style={[styles.metricCard, styles.metricCardBlue]}>
+                <AppText style={styles.metricValue}>
+                  {monthTotals.avgWaterMl.toLocaleString()} mL
+                </AppText>
+                <AppText style={styles.metricLabel}>일평균{"\n"}수분💧</AppText>
+              </View>
 
-            <View style={[styles.metricCard, styles.metricCardBrown]}>
-              <AppText style={styles.metricValue}>
-                {monthTotals.avgCaffeineMg.toLocaleString()} mg
-              </AppText>
-              <AppText style={styles.metricLabel}>일평균{"\n"}카페인☕️</AppText>
-            </View>
+              <View style={[styles.metricCard, styles.metricCardBrown]}>
+                <AppText style={styles.metricValue}>
+                  {monthTotals.avgCaffeineMg.toLocaleString()} mg
+                </AppText>
+                <AppText style={styles.metricLabel}>
+                  일평균{"\n"}카페인☕️
+                </AppText>
+              </View>
             </View>
 
             <View style={styles.metricRow}>
-            <View style={[styles.metricCard, styles.metricCardPink]}>
-              <AppText style={styles.metricValue}>
-                {monthTotals.avgSugarG.toLocaleString()} g
-              </AppText>
-              <AppText style={styles.metricLabel}>일평균{"\n"}당류🍭</AppText>
-            </View>
-            <View style={[styles.metricCard, styles.metricCardPeach]}>
-              <AppText style={styles.metricValue}>
-                {monthTotals.avgCalorieKcal.toLocaleString()} kcal
-              </AppText>
-              <AppText style={styles.metricLabel}>일평균{"\n"}열량</AppText>
-            </View>
+              <View style={[styles.metricCard, styles.metricCardPink]}>
+                <AppText style={styles.metricValue}>
+                  {monthTotals.avgSugarG.toLocaleString()} g
+                </AppText>
+                <AppText style={styles.metricLabel}>일평균{"\n"}당류🍭</AppText>
+              </View>
+              <View style={[styles.metricCard, styles.metricCardPeach]}>
+                <AppText style={styles.metricValue}>
+                  {monthTotals.avgCalorieKcal.toLocaleString()} kcal
+                </AppText>
+                <AppText style={styles.metricLabel}>일평균{"\n"}열량</AppText>
+              </View>
             </View>
           </View>
 
@@ -941,34 +945,34 @@ function Calendar() {
 
           <View style={styles.footerMetricsRow}>
             <View style={styles.metricRow}>
-            <View style={styles.footerMetricPill}>
-              <AppText style={styles.footerMetricValue}>
-                {selectedTotals.waterMl.toLocaleString()} mL
-              </AppText>
-              <AppText style={styles.footerMetricLabel}>수분</AppText>
-            </View>
+              <View style={styles.footerMetricPill}>
+                <AppText style={styles.footerMetricValue}>
+                  {selectedTotals.waterMl.toLocaleString()} mL
+                </AppText>
+                <AppText style={styles.footerMetricLabel}>수분</AppText>
+              </View>
 
-            <View style={styles.footerMetricPill}>
-              <AppText style={styles.footerMetricValue}>
-                {selectedTotals.caffeineMg.toLocaleString()} mg
-              </AppText>
-              <AppText style={styles.footerMetricLabel}>카페인</AppText>
-            </View>
+              <View style={styles.footerMetricPill}>
+                <AppText style={styles.footerMetricValue}>
+                  {selectedTotals.caffeineMg.toLocaleString()} mg
+                </AppText>
+                <AppText style={styles.footerMetricLabel}>카페인</AppText>
+              </View>
             </View>
 
             <View style={styles.metricRow}>
-            <View style={styles.footerMetricPill}>
-              <AppText style={styles.footerMetricValue}>
-                {selectedTotals.sugarG.toLocaleString()} g
-              </AppText>
-              <AppText style={styles.footerMetricLabel}>당류</AppText>
-            </View>
-            <View style={styles.footerMetricPill}>
-              <AppText style={styles.footerMetricValue}>
-                {selectedTotals.calorieKcal.toLocaleString()} kcal
-              </AppText>
-              <AppText style={styles.footerMetricLabel}>열량</AppText>
-            </View>
+              <View style={styles.footerMetricPill}>
+                <AppText style={styles.footerMetricValue}>
+                  {selectedTotals.sugarG.toLocaleString()} g
+                </AppText>
+                <AppText style={styles.footerMetricLabel}>당류</AppText>
+              </View>
+              <View style={styles.footerMetricPill}>
+                <AppText style={styles.footerMetricValue}>
+                  {selectedTotals.calorieKcal.toLocaleString()} kcal
+                </AppText>
+                <AppText style={styles.footerMetricLabel}>열량</AppText>
+              </View>
             </View>
           </View>
 
@@ -1005,6 +1009,16 @@ function Calendar() {
                           <AppText style={styles.entryMeta}>
                             {amountText}
                           </AppText>
+                          {(entry.toppings ?? []).length > 0 && (
+                            <AppText style={styles.entryMeta}>
+                              토핑:{" "}
+                              {(entry.toppings ?? [])
+                                .map(
+                                  (item) => `${item.name} ${item.quantity}회`,
+                                )
+                                .join(", ")}
+                            </AppText>
+                          )}
                         </View>
                       </View>
 
@@ -1041,6 +1055,12 @@ function Calendar() {
               )}
             </View>
           </View>
+
+          {hasUnknownNutrition && (
+            <AppText style={styles.footerHint}>
+              일부 토핑의 영양정보가 없어 확인된 값만 합산했어요.
+            </AppText>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -1271,7 +1291,7 @@ const styles = StyleSheet.create({
   metricValue: {
     ...TYPOGRAPHY.preset.h2,
     color: COLORS.semantic.textPrimary,
-    textAlign: 'center'
+    textAlign: "center",
   },
   metricLabel: {
     ...TYPOGRAPHY.preset.body,
@@ -1330,6 +1350,7 @@ const styles = StyleSheet.create({
   footerHint: {
     ...TYPOGRAPHY.preset.body,
     opacity: 0.7,
+    textAlign: "center",
   },
   summaryRow: {
     gap: 4,
@@ -1348,27 +1369,27 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     gap: 10,
     paddingVertical: 4,
   },
   entryLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     flex: 1,
     minWidth: 0,
   },
   entryActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   entryActionButton: {
     width: 32,
     height: 32,
-    alignItems: 'center',
-    justifyContent: 'center'
+    alignItems: "center",
+    justifyContent: "center",
   },
   entryInfo: {
     flex: 1,

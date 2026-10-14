@@ -33,8 +33,17 @@ import {
   updateEntry,
   listEntries,
 } from "@/src/features/entries/entriesApi";
+import { listVisibleToppings } from "@/src/features/toppings/toppingsApi";
+import { calculateToppingNutrition } from "@/src/features/toppings/caculateToppingNutrition";
 import { db } from "@/src/lib/firebase";
-import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import {
+  collection,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  where,
+} from "firebase/firestore";
 import {
   DRINK_ICONS,
   DrinkIconKey,
@@ -42,6 +51,9 @@ import {
   IngredientIconKey,
 } from "@/src/constants/icons";
 import { useAuth } from "@/src/providers/AuthProvider";
+import type { EntryTopping, Topping } from "@/src/types/topping";
+import ToppingSelectModal from "@/src/components/record/ToppingSelectModal";
+import ToppingIcon from "@/src/components/common/ToppingIcon";
 
 type Item = {
   id: string;
@@ -153,11 +165,13 @@ function mapRecipeIconKeyToAppKey(params: {
 
   if (name.includes("밀크티")) return "ice_milk_tea";
   if (name.includes("말차")) {
-    if (name.includes("프라푸치노") || category === "smoothie") return "matcha_frappe";
+    if (name.includes("프라푸치노") || category === "smoothie")
+      return "matcha_frappe";
     if (name.includes("아이스")) return "ice_matcha_latte";
     return "matcha_latte";
   }
-  if (name.includes("라떼") || category === "latte" || category === "milk") return "ice_cafe_latte";
+  if (name.includes("라떼") || category === "latte" || category === "milk")
+    return "ice_cafe_latte";
   if (
     name.includes("주스") ||
     category === "juice" ||
@@ -204,9 +218,7 @@ function normalizeIngredientIconKey(raw: unknown): IngredientIconKey {
     tea_leaf: "leaf",
   };
   const mapped = aliasMap[key] ?? key;
-  return mapped in INGREDIENT_ICONS
-    ? (mapped as IngredientIconKey)
-    : "default";
+  return mapped in INGREDIENT_ICONS ? (mapped as IngredientIconKey) : "default";
 }
 
 function resolveCalendarIconKey(params: {
@@ -267,6 +279,12 @@ function buildFallbackItemFromEntry(entry: any): Item | null {
       ? Math.max(1, Number(entry?.mlPerUnit ?? (totalMl / servings || 200)))
       : Math.max(1, totalMl);
 
+  const toppingNutrition = calculateToppingNutrition(entry.toppings ?? []);
+  const ratio = unit === "cup" ? servings : totalMl / mlPerServing;
+  const safeRatio = ratio > 0 ? ratio : 1;
+  const basePerServing = (total: unknown, toppingTotal: number) =>
+    Math.max(0, Number(total ?? 0) - toppingTotal) / safeRatio;
+
   return {
     id: String(entry?.drinkId ?? `entry-${drinkName}`),
     name: drinkName,
@@ -278,8 +296,7 @@ function buildFallbackItemFromEntry(entry: any): Item | null {
       isWaterOnly: Boolean(entry?.isWaterOnly),
     }),
     iconUrl: null,
-    ingredientIconUrl:
-      (entry?.calendarIconUrl as string | undefined) ?? null,
+    ingredientIconUrl: (entry?.calendarIconUrl as string | undefined) ?? null,
     calendarIconKey: resolveCalendarIconKey({
       calendarIconKey: entry?.iconKey ?? entry?.calendarIconKey,
       name: drinkName,
@@ -287,11 +304,15 @@ function buildFallbackItemFromEntry(entry: any): Item | null {
       isWaterOnly: Boolean(entry?.isWaterOnly),
     }),
     mlPerServing,
-    caffeineMgPerServing:
-      Number(entry?.totalCaffeineMg ?? 0) / servings,
-    sugarGPerServing:
-      Number(entry?.totalSugarG ?? 0) / servings,
-    isWaterOnly: Boolean(entry?.isWaterOnly),
+    caffeineMgPerServing: basePerServing(
+      entry.totalCaffeineMg,
+      toppingNutrition.caffeine,
+    ),
+    sugarGPerServing: basePerServing(entry.totalSugarG, toppingNutrition.sugar),
+    calorieKcalPerServing: basePerServing(
+      entry.totalCaloriesKcal,
+      toppingNutrition.calories,
+    ),
   };
 }
 
@@ -397,6 +418,13 @@ const RecordCreateScreen = () => {
   const [saveDone, setSaveDone] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // 토핑
+  const [toppingItems, setToppingItems] = useState<Topping[]>([]);
+  const [toppingsLoading, setToppingsLoading] = useState(true);
+  const [toppingsError, setToppingsError] = useState<string | null>(null);
+  const [toppingModalOpen, setToppingModalOpen] = useState(false);
+  const [selectedToppings, setSelectedToppings] = useState<EntryTopping[]>([]);
+
   useEffect(() => {
     if (Platform.OS !== "android" || isEditMode) return;
 
@@ -457,51 +485,59 @@ const RecordCreateScreen = () => {
 
   const calendar = require("@/assets/tabs/calendar_inactive.png");
   const clock = require("@/assets/icons/etc/clock.png");
-  const searchIcon = require('@/assets/icons/etc/search.png');
+  const searchIcon = require("@/assets/icons/etc/search.png");
 
   useEffect(() => {
     const recipesRef = collection(db, "recipes");
     const recipesQ = query(recipesRef, where("isPublic", "==", true));
 
     const unsub = onSnapshot(recipesQ, (snap) => {
-      const rows = snap.docs.map((d) => {
-        const data = d.data() as any;
-        return {
-          id: d.id,
-          name: (data.name as string) ?? "",
-          category: data.category as string | undefined,
-          normalizedName: data.normalizedName as string | undefined,
-          aliases: (data.aliases as string[] | undefined) ?? [],
-          searchKeywords: (data.searchKeywords as string[] | undefined) ?? [],
-          drinkIconKey: mapRecipeIconKeyToAppKey({
-            drinkIconKey: data.drinkIconKey as string | undefined,
-            name: data.name as string | undefined,
+      const rows = snap.docs
+        .map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            name: (data.name as string) ?? "",
             category: data.category as string | undefined,
-          }),
-          iconUrl: (data.iconUrl as string | undefined) ?? null,
-          ingredientIconUrl:
-            (data.ingredientIconUrl as string | undefined) ?? null,
-          calendarIconKey: resolveCalendarIconKey({
-            calendarIconKey: data.calendarIconKey,
-            name: data.name as string | undefined,
-            category: data.category as string | undefined,
+            normalizedName: data.normalizedName as string | undefined,
+            aliases: (data.aliases as string[] | undefined) ?? [],
+            searchKeywords: (data.searchKeywords as string[] | undefined) ?? [],
+            drinkIconKey: mapRecipeIconKeyToAppKey({
+              drinkIconKey: data.drinkIconKey as string | undefined,
+              name: data.name as string | undefined,
+              category: data.category as string | undefined,
+            }),
+            iconUrl: (data.iconUrl as string | undefined) ?? null,
+            ingredientIconUrl:
+              (data.ingredientIconUrl as string | undefined) ?? null,
+            calendarIconKey: resolveCalendarIconKey({
+              calendarIconKey: data.calendarIconKey,
+              name: data.name as string | undefined,
+              category: data.category as string | undefined,
+              isWaterOnly: data.isWaterOnly as boolean | undefined,
+            }),
+            mlPerServing: data.mlPerServing as number | undefined,
+            caffeineMgPerServing: data.caffeineMgPerServing as
+              | number
+              | undefined,
+            sugarGPerServing: data.sugarGPerServing as number | undefined,
+            calorieKcalPerServing: data.calorieKcalPerServing as
+              | number
+              | undefined,
             isWaterOnly: data.isWaterOnly as boolean | undefined,
-          }),
-          mlPerServing: data.mlPerServing as number | undefined,
-          caffeineMgPerServing: data.caffeineMgPerServing as number | undefined,
-          sugarGPerServing: data.sugarGPerServing as number | undefined,
-          calorieKcalPerServing:
-            data.calorieKcalPerServing as number | undefined,
-          isWaterOnly: data.isWaterOnly as boolean | undefined,
-          createdAtMs:
-            typeof (data.createdAt as any)?.toMillis === "function"
-              ? Number((data.createdAt as any).toMillis())
-              : 0,
-          globalPopularityScore: Number(
-            data.popularityLiveCount ?? data.popularityCount ?? data.popularityScore ?? 0,
-          ),
-        } satisfies Item;
-      }).filter((item) => item.name.trim().length > 0);
+            createdAtMs:
+              typeof (data.createdAt as any)?.toMillis === "function"
+                ? Number((data.createdAt as any).toMillis())
+                : 0,
+            globalPopularityScore: Number(
+              data.popularityLiveCount ??
+                data.popularityCount ??
+                data.popularityScore ??
+                0,
+            ),
+          } satisfies Item;
+        })
+        .filter((item) => item.name.trim().length > 0);
 
       setRecipeItems(rows);
     });
@@ -570,7 +606,9 @@ const RecordCreateScreen = () => {
       recipeItems.find(
         (item) =>
           item.name.trim().toLowerCase() ===
-          String(editEntry.drinkName ?? "").trim().toLowerCase(),
+          String(editEntry.drinkName ?? "")
+            .trim()
+            .toLowerCase(),
       );
 
     setPicked(matched ?? buildFallbackItemFromEntry(editEntry));
@@ -615,6 +653,31 @@ const RecordCreateScreen = () => {
     setConsumedAt((prev) => mergeDatePart(nextDate, prev));
   }, [params.date]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    listVisibleToppings()
+      .then((items) => {
+        if (!cancelled) setToppingItems(items);
+      })
+      .catch((error) => {
+        console.error("토핑 조회 실패:", error);
+        if (!cancelled) setToppingsError("토핑을 불러오지 못했어요.");
+      })
+      .finally(() => {
+        if (!cancelled) setToppingsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editEntry) return;
+    setSelectedToppings(editEntry.toppings ?? []);
+  }, [editEntry]);
+
   const amountHintText = useMemo(() => {
     if (unit !== "cup") return null;
     if (!picked) return null;
@@ -626,22 +689,30 @@ const RecordCreateScreen = () => {
   const handleSelectUnit = (nextUnit: string) => {
     if (nextUnit === unit) return;
 
-    const defaultMl = Math.max(1, Math.round(Number(picked?.mlPerServing ?? 200)));
+    const defaultMl = Math.max(
+      1,
+      Math.round(Number(picked?.mlPerServing ?? 200)),
+    );
     const rawAmount = Number(servings);
 
     if (nextUnit === "ml") {
-      const cupAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 1;
+      const cupAmount =
+        Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : 1;
       setServings(String(Math.max(1, Math.round(cupAmount * defaultMl))));
       setUnit("ml");
       return;
     }
 
-    const mlAmount = Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : defaultMl;
+    const mlAmount =
+      Number.isFinite(rawAmount) && rawAmount > 0 ? rawAmount : defaultMl;
     setServings(String(Math.max(1, Math.round(mlAmount / defaultMl))));
     setUnit("cup");
   };
 
   const onPick = (item: Item) => {
+    if (picked?.id !== item.id) {
+      setSelectedToppings([]);
+    }
     setPicked(item);
     setSearch(item.name);
     setSearchQuery(item.name);
@@ -668,15 +739,18 @@ const RecordCreateScreen = () => {
       const drinkName = String(entry?.drinkName ?? "").trim();
       if (!drinkName) return null;
 
-      const drinkId = typeof entry?.drinkId === "string" ? entry.drinkId : undefined;
+      const drinkId =
+        typeof entry?.drinkId === "string" ? entry.drinkId : undefined;
       const matched =
         (drinkId ? byRecipeId.get(drinkId) : undefined) ??
         byName.get(drinkName.toLowerCase());
 
-      const category = (entry?.category as string | undefined) ?? matched?.category;
+      const category =
+        (entry?.category as string | undefined) ?? matched?.category;
       const isWaterOnly = Boolean(entry?.isWaterOnly ?? matched?.isWaterOnly);
       const drinkIconKey = resolveDrinkIconKey({
-        drinkIconKey: matched?.drinkIconKey ?? (entry?.drinkIconKey as string | undefined),
+        drinkIconKey:
+          matched?.drinkIconKey ?? (entry?.drinkIconKey as string | undefined),
         name: matched?.name ?? drinkName,
         category,
         isWaterOnly,
@@ -720,7 +794,10 @@ const RecordCreateScreen = () => {
       recent.push(item);
     });
 
-    const countMap = new Map<string, { item: Item; count: number; latestMs: number }>();
+    const countMap = new Map<
+      string,
+      { item: Item; count: number; latestMs: number }
+    >();
     entryHistory.forEach((entry, index) => {
       const item = getResolvedItem(entry, index);
       if (!item) return;
@@ -789,6 +866,7 @@ const RecordCreateScreen = () => {
         amount: Number(servings),
 
         memo,
+        toppings: selectedToppings,
         brandLabel: brand,
       });
 
@@ -822,6 +900,48 @@ const RecordCreateScreen = () => {
     }, 320);
   };
 
+  function handleSelectTopping(item: Topping) {
+    setSelectedToppings((prev) => {
+      if (prev.some((topping) => topping.toppingId === item.id)) {
+        return prev.filter((topping) => topping.toppingId !== item.id);
+      }
+      return [
+        ...prev,
+        {
+          toppingId: item.id,
+          name: item.name,
+          brand: item.brand ?? null,
+          servingLabel: item.servingLabel,
+          quantity: 1,
+          calories: item.calories ?? null,
+          caffeine: item.caffeine ?? null,
+          sugar: item.sugar ?? null,
+          nutritionType: item.nutritionType,
+          iconKey: item.iconKey ?? null,
+          iconUrl: item.iconUrl ?? null,
+        },
+      ];
+    });
+  }
+
+  function changeToppingQuantity(toppingId: string, delta: number) {
+    setSelectedToppings((prev) =>
+      prev.map((item) =>
+        item.toppingId === toppingId
+          ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+          : item,
+      ),
+    );
+  }
+
+  function removeTopping(toppingId: string) {
+    setSelectedToppings((prev) =>
+      prev.filter((item) => item.toppingId !== toppingId),
+    );
+  }
+
+  const toppingNutrition = calculateToppingNutrition(selectedToppings);
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.container}>
@@ -844,161 +964,237 @@ const RecordCreateScreen = () => {
             keyboardDismissMode="on-drag"
             automaticallyAdjustKeyboardInsets
           >
-          {/* 날짜 */}
-          <Text style={styles.sectionTitle}>날짜</Text>
-          <Pressable
-            style={styles.fieldRow}
-            onPress={() => setDatePickerOpen(true)}
-          >
-            <Text style={styles.fieldText}>{formatDateDot(date)}</Text>
-            <Image source={calendar} style={styles.icon} />
-          </Pressable>
-
-          {/* 음료 */}
-          <View style={styles.searchBar}>
-            <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-              음료 이름
-            </Text>
+            {/* 날짜 */}
+            <Text style={styles.sectionTitle}>날짜</Text>
             <Pressable
-              style={styles.quickBtn}
-              onPress={() => setQuickPickOpen(true)}
-              hitSlop={8}
+              style={styles.fieldRow}
+              onPress={() => setDatePickerOpen(true)}
             >
-              <View style={styles.quickBtnRow}>
-                <Image source={clock} style={styles.icon} />
-                <Text style={styles.quickBtnText}>
-                  빠르게 불러오기
-                </Text>
-              </View>
+              <Text style={styles.fieldText}>{formatDateDot(date)}</Text>
+              <Image source={calendar} style={styles.icon} />
             </Pressable>
-          </View>
-          <Pressable style={styles.fieldRow} onPress={onSearch}>
-            <Text style={styles.fieldTextMuted}>
-              {picked?.name ?? "음료를 검색해 주세요"}
-            </Text>
-           <Image source={searchIcon} style={styles.icon}/>
-          </Pressable>
 
-          {/* 브랜드(선택) */}
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-            어디서 마셨나요? (선택)
-          </Text>
-          <PlaceholderTextField
-            value={brand}
-            onChangeText={setBrand}
-            placeholder="예) 집, 회사, 스타벅스"
-            style={styles.brandInput}
-            placeholderStyle={styles.brandPlaceholder}
-          />
-
-          {/* 양 & 사이즈 */}
-          <View style={[styles.sectionHeaderRow, { marginTop: 14 }]}>
-            <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
-              양 & 사이즈
-            </Text>
-            <View style={styles.tooltipAnchor}>
+            {/* 음료 */}
+            <View style={styles.searchBar}>
+              <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
+                음료 이름
+              </Text>
               <Pressable
+                style={styles.quickBtn}
+                onPress={() => setQuickPickOpen(true)}
                 hitSlop={8}
-                onPress={() =>
-                  setSizeGuideToolTipOpen((prev) => !prev)
-                }
               >
-                <Ionicons
-                  name="help-circle-outline"
-                  size={18}
-                  color={COLORS.semantic.textSecondary}
-                />
-              </Pressable>
-
-              {sizeGuideToolTipOpen ? (
-                <View style={styles.tooltipBubble}>
-                  <View style={styles.tooltipArrow} />
-
-                  <View style={styles.tooltipBubbleHeader}>
-                    <AppText style={styles.tooltipBubbleTitle}>
-                      음료 사이즈 기준
-                    </AppText>
-
-                    <Pressable
-                      hitSlop={8}
-                      onPress={() => setSizeGuideToolTipOpen(false)}
-                    >
-                      <Ionicons
-                        name="close"
-                        size={16}
-                        color={COLORS.semantic.textPrimary}
-                      />
-                    </Pressable>
-                  </View>
-
-                  <AppText style={styles.tooltipBubbleText}>
-                    {SIZE_GUIDE_TOOLTIP_TEXT}
-                  </AppText>
+                <View style={styles.quickBtnRow}>
+                  <Image source={clock} style={styles.icon} />
+                  <Text style={styles.quickBtnText}>빠르게 불러오기</Text>
                 </View>
+              </Pressable>
+            </View>
+            <Pressable style={styles.fieldRow} onPress={onSearch}>
+              <Text style={styles.fieldTextMuted}>
+                {picked?.name ?? "음료를 검색해 주세요"}
+              </Text>
+              <Image source={searchIcon} style={styles.icon} />
+            </Pressable>
+
+            {/* 브랜드(선택) */}
+            <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
+              어디서 마셨나요? (선택)
+            </Text>
+            <PlaceholderTextField
+              value={brand}
+              onChangeText={setBrand}
+              placeholder="예) 집, 회사, 스타벅스"
+              style={styles.brandInput}
+              placeholderStyle={styles.brandPlaceholder}
+            />
+
+            {/* 양 & 사이즈 */}
+            <View style={[styles.sectionHeaderRow, { marginTop: 14 }]}>
+              <Text style={[styles.sectionTitle, styles.sectionTitleInline]}>
+                양 & 사이즈
+              </Text>
+              <View style={styles.tooltipAnchor}>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => setSizeGuideToolTipOpen((prev) => !prev)}
+                >
+                  <Ionicons
+                    name="help-circle-outline"
+                    size={18}
+                    color={COLORS.semantic.textSecondary}
+                  />
+                </Pressable>
+
+                {sizeGuideToolTipOpen ? (
+                  <View style={styles.tooltipBubble}>
+                    <View style={styles.tooltipArrow} />
+
+                    <View style={styles.tooltipBubbleHeader}>
+                      <AppText style={styles.tooltipBubbleTitle}>
+                        음료 사이즈 기준
+                      </AppText>
+
+                      <Pressable
+                        hitSlop={8}
+                        onPress={() => setSizeGuideToolTipOpen(false)}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={16}
+                          color={COLORS.semantic.textPrimary}
+                        />
+                      </Pressable>
+                    </View>
+
+                    <AppText style={styles.tooltipBubbleText}>
+                      {SIZE_GUIDE_TOOLTIP_TEXT}
+                    </AppText>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+            <View style={styles.amountRow}>
+              <View style={styles.amountBox}>
+                <TextField
+                  value={servings}
+                  onChangeText={(t) => {
+                    const digitsOnly = t.replace(/[^0-9]/g, "");
+
+                    if (digitsOnly === "") {
+                      setServings("");
+                      return;
+                    }
+
+                    const n = Math.min(Math.max(Number(digitsOnly), 1), 9999);
+                    setServings(String(n));
+                  }}
+                  onBlur={() => {
+                    if (servings.trim() === "") setServings("1");
+                  }}
+                  keyboardType="number-pad"
+                  style={styles.amountInput}
+                />
+              </View>
+
+              <Pressable
+                style={styles.amountSelect}
+                onPress={() => setUnitModal(true)}
+              >
+                <Text style={styles.amountSelectText}>
+                  {unit === "cup" ? "잔" : "mL"}
+                </Text>
+                <Text style={styles.fieldIcon}>▾</Text>
+              </Pressable>
+              {amountHintText ? (
+                <Text style={styles.amountHint}>{amountHintText}</Text>
               ) : null}
             </View>
-          </View>
-          <View style={styles.amountRow}>
-            <View style={styles.amountBox}>
-              <TextField
-                value={servings}
-                onChangeText={(t) => {
-                  const digitsOnly = t.replace(/[^0-9]/g, "");
-
-                  if (digitsOnly === "") {
-                    setServings("");
-                    return;
-                  }
-
-                  const n = Math.min(Math.max(Number(digitsOnly), 1), 9999);
-                  setServings(String(n));
-                }}
-                onBlur={() => {
-                  if (servings.trim() === "") setServings("1");
-                }}
-                keyboardType="number-pad"
-                style={styles.amountInput}
-              />
-            </View>
-
+            {/* 마신 시간 */}
+            <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
+              마신 시간
+            </Text>
             <Pressable
-              style={styles.amountSelect}
-              onPress={() => setUnitModal(true)}
+              style={styles.fieldRow}
+              onPress={() => setTimePickerOpen(true)}
             >
-              <Text style={styles.amountSelectText}>
-                {unit === "cup" ? "잔" : "mL"}
-              </Text>
-              <Text style={styles.fieldIcon}>▾</Text>
+              <Text style={styles.fieldText}>{formatTime(consumedAt)}</Text>
+              <Image source={clock} style={styles.icon} />
             </Pressable>
-            {amountHintText ? (
-              <Text style={styles.amountHint}>{amountHintText}</Text>
-            ) : null}
-          </View>
-          {/* 마신 시간 */}
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-            마신 시간
-          </Text>
-          <Pressable
-            style={styles.fieldRow}
-            onPress={() => setTimePickerOpen(true)}
-          >
-            <Text style={styles.fieldText}>{formatTime(consumedAt)}</Text>
-            <Image source={clock} style={styles.icon} />
-          </Pressable>
 
-          {/* 메모 */}
-          <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
-            메모 (선택)
-          </Text>
-          <PlaceholderTextField
-            value={memo}
-            onChangeText={setMemo}
-            placeholder="이 음료는 어땠나요?"
-            style={styles.memo}
-            placeholderStyle={styles.memoPlaceholder}
-            multiline
-            onFocus={handleFocusMemo}
-          />
+            {/* 토핑 */}
+            <View style={styles.toppingHeading}>
+              <Text style={styles.sectionTitle}>토핑 (선택)</Text>
+              {selectedToppings.length > 0 && (
+                <Text style={styles.toppingCount}>{selectedToppings.length}종 선택</Text>
+              )}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.toppingAddButton, pressed && styles.toppingPressed]}
+              onPress={() => setToppingModalOpen(true)}
+              accessibilityRole="button"
+            >
+              <Ionicons name="add-circle-outline" size={20} color={COLORS.primary.caramel} />
+              <Text style={styles.toppingAddText}>토핑 추가하기</Text>
+              <Ionicons name="chevron-forward" size={16} color={COLORS.primary.caramel} />
+            </Pressable>
+
+            {selectedToppings.map((item) => (
+              <View key={item.toppingId} style={styles.toppingRow}>
+                <View style={styles.toppingCardHeader}>
+                  <View style={styles.toppingIconWrap}>
+                    <ToppingIcon iconKey={item.iconKey} iconUrl={item.iconUrl} size={32} />
+                  </View>
+                  <View style={styles.toppingInfo}>
+                    <Text style={styles.toppingName}>{item.name}</Text>
+                    {item.brand ? <Text style={styles.toppingCaption}>{item.brand}</Text> : null}
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [styles.toppingRemove, pressed && styles.toppingPressed]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${item.name} 삭제`}
+                    onPress={() => removeTopping(item.toppingId)}
+                  >
+                    <Ionicons name="close" size={20} color={COLORS.semantic.textSecondary} />
+                  </Pressable>
+                </View>
+                <View style={styles.toppingCardFooter}>
+                  <Text style={[styles.toppingCaption, styles.toppingServing]}>
+                    1회 기준 · {item.servingLabel}
+                  </Text>
+                  <View style={styles.toppingStepper}>
+                    <Pressable
+                      style={({ pressed }) => [styles.toppingAction, pressed && styles.toppingPressed]}
+                      disabled={item.quantity <= 1}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: item.quantity <= 1 }}
+                      accessibilityLabel={`${item.name} 수량 줄이기`}
+                      onPress={() => changeToppingQuantity(item.toppingId, -1)}
+                    >
+                      <Ionicons name="remove" size={18} color={item.quantity <= 1 ? COLORS.ui.disabledText : COLORS.semantic.textPrimary} />
+                    </Pressable>
+                    <Text style={styles.toppingQuantity} accessibilityLiveRegion="polite">{item.quantity}회</Text>
+                    <Pressable
+                      style={({ pressed }) => [styles.toppingAction, pressed && styles.toppingPressed]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${item.name} 수량 늘리기`}
+                      onPress={() => changeToppingQuantity(item.toppingId, 1)}
+                    >
+                      <Ionicons name="add" size={18} color={COLORS.semantic.textPrimary} />
+                    </Pressable>
+                  </View>
+                </View>
+              </View>
+            ))}
+
+            {selectedToppings.length > 0 && (
+              <View style={styles.toppingSummary}>
+                <Text style={styles.toppingName}>토핑으로 추가되는 영양정보</Text>
+                <View style={styles.toppingNutrients}>
+                  <Text style={styles.toppingNutrient}>열량 {Number(toppingNutrition.calories.toFixed(1))} kcal</Text>
+                  <Text style={styles.toppingNutrient}>카페인 {Number(toppingNutrition.caffeine.toFixed(1))} mg</Text>
+                  <Text style={styles.toppingNutrient}>당류 {Number(toppingNutrition.sugar.toFixed(1))} g</Text>
+                </View>
+                <Text style={styles.toppingCaption}>횟수는 잔당이 아닌, 이 기록 전체에 추가한 양이에요.</Text>
+                {toppingNutrition.hasUnknownNutrition && (
+                  <Text style={styles.toppingWarning}>일부 영양정보가 없어 확인된 값만 표시해요.</Text>
+                )}
+              </View>
+            )}
+
+            {/* 메모 */}
+            <Text style={[styles.sectionTitle, { marginTop: 14 }]}>
+              메모 (선택)
+            </Text>
+            <PlaceholderTextField
+              value={memo}
+              onChangeText={setMemo}
+              placeholder="이 음료는 어땠나요?"
+              style={styles.memo}
+              placeholderStyle={styles.memoPlaceholder}
+              multiline
+              onFocus={handleFocusMemo}
+            />
           </ScrollView>
         </KeyboardAvoidingView>
 
@@ -1028,6 +1224,16 @@ const RecordCreateScreen = () => {
           frequent={frequentItems}
           recent={recentItems}
           onPick={onPick}
+        />
+
+        <ToppingSelectModal
+          visible={toppingModalOpen}
+          items={toppingItems}
+          loading={toppingsLoading}
+          error={toppingsError}
+          selectedIds={selectedToppings.map((item) => item.toppingId)}
+          onSelect={handleSelectTopping}
+          onClose={() => setToppingModalOpen(false)}
         />
 
         {/* Select 모달들 */}
@@ -1163,6 +1369,8 @@ const RecordCreateScreen = () => {
               setUnit("cup");
               setSizeLabel("M");
               setMemo("");
+              setSelectedToppings([]);
+              setToppingModalOpen(false);
               Alert.alert("안내", "계속 기록해 보아요!");
             }}
           />
@@ -1214,7 +1422,7 @@ const styles = StyleSheet.create({
   },
   quickBtn: {
     height: 36,
-    
+
     paddingHorizontal: 10,
     alignItems: "center",
     justifyContent: "center",
@@ -1229,11 +1437,10 @@ const styles = StyleSheet.create({
     color: COLORS.semantic.textSecondary,
   },
   searchBar: {
-    
     flexDirection: "row",
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 20
+    gap: 20,
   },
   body: {
     flex: 1,
@@ -1494,5 +1701,120 @@ const styles = StyleSheet.create({
   modalRowTextSelected: {
     ...TYPOGRAPHY.preset.body,
     color: COLORS.semantic.textPrimary,
+  },
+  toppingRow: {
+    marginTop: 10,
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.ui.border,
+    backgroundColor: COLORS.base.creamPaper,
+    gap: 12,
+  },
+  toppingHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 18,
+    gap: 8,
+  },
+  toppingCount: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.primary.caramel,
+  },
+  toppingAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: COLORS.primary.latte,
+    borderRadius: 14,
+    backgroundColor: COLORS.base.creamPaper,
+  },
+  toppingAddText: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.primary.caramel,
+    flex: 1,
+  },
+  toppingCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  toppingIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.semantic.background,
+  },
+  toppingInfo: { flex: 1, minWidth: 0, gap: 2 },
+  toppingName: {
+    ...TYPOGRAPHY.preset.body,
+    color: COLORS.semantic.textPrimary,
+  },
+  toppingCaption: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textSecondary,
+  },
+  toppingRemove: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 22,
+  },
+  toppingCardFooter: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  toppingServing: { flexGrow: 1, flexShrink: 1, flexBasis: 100 },
+  toppingStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: COLORS.semantic.background,
+  },
+  toppingQuantity: {
+    ...TYPOGRAPHY.preset.numberSm,
+    color: COLORS.semantic.textPrimary,
+    minWidth: 40,
+    textAlign: "center",
+  },
+  toppingSummary: {
+    marginTop: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: COLORS.base.warmBeige,
+    gap: 8,
+  },
+  toppingNutrients: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  toppingNutrient: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.semantic.textPrimary,
+    backgroundColor: COLORS.base.creamPaper,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  toppingWarning: {
+    ...TYPOGRAPHY.preset.caption,
+    color: COLORS.primary.espresso,
+  },
+  toppingPressed: {
+    opacity: 0.6,
+  },
+  toppingAction: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

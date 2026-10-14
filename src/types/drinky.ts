@@ -1,50 +1,52 @@
-import type { Timestamp, FieldValue } from 'firebase/firestore';
+import type { Timestamp, FieldValue } from "firebase/firestore";
+import { EntryTopping } from "./topping";
 
 export type SizeLabel = "S" | "M" | "L" | "custom";
 export type Unit = "cup" | "ml";
 
 // 레시피북에서 오는 데이터
 export type DrinkRecipe = {
-    id: string;
-    name: string;
-    drinkIconKey: string;
-    calendarIconKey: string;
-    isWaterOnly: boolean; // 수분 합산 여부(순수 물만 true)
-    baseMl: number; // 355, 473, 200 등
-    caffeineMgPerBase: number; // baseMl 기준 카페인
-    sugarGPerBase: number; // baseMl 기준 당
+  id: string;
+  name: string;
+  drinkIconKey: string;
+  calendarIconKey: string;
+  isWaterOnly: boolean; // 수분 합산 여부(순수 물만 true)
+  baseMl: number; // 355, 473, 200 등
+  caffeineMgPerBase: number; // baseMl 기준 카페인
+  sugarGPerBase: number; // baseMl 기준 당
 };
 
 // Firestore entries 문서 스키마
 export type EntryDoc = {
-    dateKey: string; // YYYY-MM-DD;
-    consumedAt: Timestamp; // 유저가 마신 시각
-    createdAt: Timestamp | FieldValue; // serverTimestamp()
-    updatedAt: Timestamp | FieldValue;
+  dateKey: string; // YYYY-MM-DD;
+  consumedAt: Timestamp; // 유저가 마신 시각
+  createdAt: Timestamp | FieldValue; // serverTimestamp()
+  updatedAt: Timestamp | FieldValue;
 
-    drinkId?: string;
-    drinkName: string;
+  drinkId?: string;
+  drinkName: string;
 
-    brandLabel?: string | null,
-    brandNormalized?: string | null,
+  brandLabel?: string | null;
+  brandNormalized?: string | null;
 
-    iconKey: string;
-    calendarIconUrl?: string | null;
-    isWaterOnly: boolean;
+  iconKey: string;
+  calendarIconUrl?: string | null;
+  isWaterOnly: boolean;
 
-    sizeLabel?: SizeLabel;
+  sizeLabel?: SizeLabel;
 
-    servings: number;
-    unit: Unit;
-    mlPerUnit: number;
-    totalMl: number;
+  servings: number;
+  unit: Unit;
+  mlPerUnit: number;
+  totalMl: number;
 
-    totalCaffeineMg: number;
-    totalSugarG: number;
-    totalCalorieKcal: number;
-    calorieKcalPerServing?: number;
+  totalCaffeineMg: number;
+  totalSugarG: number;
+  totalCalorieKcal: number;
+  calorieKcalPerServing?: number;
 
-    waterMl: number; // isWaterOnly ? totalMl : 0
+  waterMl: number; // isWaterOnly ? totalMl : 0
 
-    memo?: string | null;
+  memo?: string | null;
+  toppings?: EntryTopping[];
 };
