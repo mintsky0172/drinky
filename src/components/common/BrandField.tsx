@@ -18,9 +18,11 @@ const BRAND_OPTIONS = [
 const BrandField = ({
   value,
   onChangeText,
+  options = BRAND_OPTIONS,
 }: {
   value: string;
   onChangeText: (text: string) => void;
+  options?: readonly string[];
 }) => {
   return (
     <View>
@@ -37,7 +39,7 @@ const BrandField = ({
       />
 
       <View style={styles.brandChipWrap}>
-        {BRAND_OPTIONS.map((brand) => {  
+        {options.map((brand) => {
           const selected = value.trim() === brand;
 
           return (

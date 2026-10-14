@@ -8,13 +8,15 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
   NutritionType,
   ToppingCategory,
   ToppingType,
 } from "@/src/types/topping";
-import { addDoc, collection, doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { uploadIconToStorage } from "@/src/features/admin/uploadDrinkIcon";
 import { db } from "@/src/lib/firebase";
 import BrandField from "@/src/components/common/BrandField";
 import IconPickerModal from "@/src/components/home/IconPickerModal";
@@ -28,6 +30,15 @@ import SelectField from "@/src/components/common/SelectField";
 import IconSelectField from "@/src/components/common/IconSelectField";
 import ToggleRow from "@/src/components/common/ToggleRow";
 import ToppingIcon from "@/src/components/common/ToppingIcon";
+
+const TOPPING_BRAND_OPTIONS = [
+  "모닌",
+  "허쉬",
+  "토라니",
+  "다빈치",
+  "1883",
+  "지파드",
+] as const;
 
 function validateToppingForm(values: {
   name: string;
@@ -59,6 +70,10 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
   const [loading, setLoading] = useState(isEditMode);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [iconUrl, setIconUrl] = useState<string | null>(null);
+  const [iconStoragePath, setIconStoragePath] = useState<string | null>(null);
+  const [pendingIconUri, setPendingIconUri] = useState<string | null>(null);
+  const [pickingIcon, setPickingIcon] = useState(false);
+  const newToppingId = useRef<string | null>(null);
   const [name, setName] = useState("");
   const [type, setType] = useState<ToppingType>("generic");
 
@@ -111,6 +126,7 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
         setIsVisible(data.isVisible ?? true);
         setToppingIconKey(data.iconKey ?? "default");
         setIconUrl(data.iconUrl ?? null);
+        setIconStoragePath(data.iconStoragePath ?? null);
         if (data.nutritionType !== "official" && data.nutritionType !== "estimated") {
           setValidationWarnings(["영양정보 유형이 없어 추정치로 표시했어요. 정확한 유형을 확인하고 저장해 주세요."]);
         }
@@ -157,10 +173,33 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
 
     setToppingIconKey("default");
     setIconUrl(null);
+    setIconStoragePath(null);
+    setPendingIconUri(null);
+    newToppingId.current = null;
+  };
+
+  const handlePickCustomIcon = async () => {
+    if (saving || pickingIcon) return;
+    setPickingIcon(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 1,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setPendingIconUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("토핑 이미지 선택 실패:", error);
+      Alert.alert("이미지 선택 실패", "기기 사진 접근 권한을 확인하고 다시 시도해 주세요.");
+    } finally {
+      setPickingIcon(false);
+    }
   };
 
   const handleSubmit = async () => {
-    if (saving || loading || loadError) return;
+    if (saving || pickingIcon || loading || loadError) return;
     if (!name.trim()) {
       Alert.alert("토핑명을 입력해 주세요.");
       return;
@@ -187,8 +226,26 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
     setValidationWarnings(warnings);
     if (errors.length) return;
 
+    let saveStage: "upload" | "document" = "document";
     try {
       setSaving(true);
+      const id = toppingId ?? (newToppingId.current ??= doc(collection(db, "toppings")).id);
+      let nextIconUrl = iconUrl;
+      let nextIconStoragePath = iconStoragePath;
+      if (pendingIconUri) {
+        saveStage = "upload";
+        const uploaded = await uploadIconToStorage({
+          uri: pendingIconUri,
+          folder: "topping-icons",
+          entityId: id,
+        });
+        nextIconUrl = uploaded.iconUrl;
+        nextIconStoragePath = uploaded.storagePath;
+        setIconUrl(nextIconUrl);
+        setIconStoragePath(nextIconStoragePath);
+        setPendingIconUri(null);
+      }
+      saveStage = "document";
 
       const payload = {
         name: name.trim(),
@@ -207,7 +264,8 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
 
         nutritionType,
 
-        iconUrl,
+        iconUrl: nextIconUrl,
+        iconStoragePath: nextIconStoragePath,
 
         isVisible,
 
@@ -223,14 +281,16 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
         await updateDoc(doc(db, "toppings", toppingId), payload);
         Alert.alert("수정 완료", "토핑을 수정했어요.", [{ text: "확인", onPress: () => router.back() }]);
       } else {
-        await addDoc(collection(db, "toppings"), { ...payload, createdAt: serverTimestamp() });
+        await setDoc(doc(db, "toppings", id), { ...payload, createdAt: serverTimestamp() });
         Alert.alert("등록 완료", "토핑을 등록했어요.");
         resetForm();
       }
     } catch (error) {
       console.error(error);
 
-      Alert.alert("저장 실패", "토핑 저장 중 오류가 발생했어요.");
+      Alert.alert("저장 실패", saveStage === "upload"
+        ? "토핑 아이콘 업로드에 실패했어요. 네트워크와 Storage 권한을 확인하고 다시 저장해 주세요."
+        : "토핑 정보 저장에 실패했어요. 입력 내용은 유지되니 다시 저장해 주세요.");
     } finally {
       setSaving(false);
     }
@@ -253,7 +313,7 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
         style={styles.safe}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView contentContainerStyle={styles.container} pointerEvents={saving ? "none" : "auto"}>
           <View style={styles.headerRow}>
             <Pressable onPress={() => router.back()} hitSlop={8}>
               <Ionicons
@@ -286,16 +346,39 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
             />
 
             {type === "branded" && (
-              <BrandField value={brand} onChangeText={setBrand} />
+              <BrandField
+                value={brand}
+                onChangeText={setBrand}
+                options={TOPPING_BRAND_OPTIONS}
+              />
             )}
 
             <IconSelectField
               label="토핑 아이콘"
-              value={toppingIconKey}
+              value={pendingIconUri || iconUrl ? "커스텀 아이콘" : toppingIconKey}
               placeholder="토핑 아이콘을 선택해 주세요"
-              icon={<ToppingIcon iconKey={toppingIconKey} iconUrl={iconUrl} size={28} />}
+              icon={<ToppingIcon iconKey={toppingIconKey} iconUrl={pendingIconUri ?? iconUrl} size={28} />}
               onPress={() => setIconPickerOpen(true)}
             />
+            <Pressable
+              style={styles.iconUploadField}
+              onPress={handlePickCustomIcon}
+              disabled={saving || pickingIcon}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: saving || pickingIcon }}
+            >
+              <Ionicons name="image-outline" size={24} color={COLORS.primary.caramel} />
+              <View style={styles.iconUploadTextWrap}>
+                <AppText preset="body" style={styles.iconUploadTitle}>
+                  {pickingIcon ? "사진 선택 중..." : "기기 갤러리에서 아이콘 선택"}
+                </AppText>
+                <AppText preset="caption" style={styles.iconUploadHint}>
+                  {pendingIconUri ? "새 이미지가 선택됐어요. 저장하면 업로드돼요."
+                    : iconUrl ? "등록된 이미지가 있어요. 눌러서 교체할 수 있어요."
+                    : "선택한 이미지는 저장할 때 업로드돼요."}
+                </AppText>
+              </View>
+            </Pressable>
           </View>
 
           <View style={styles.sectionCard}>
@@ -416,7 +499,7 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
               saving && styles.saveButtonDisabled,
             ]}
             onPress={handleSubmit}
-            disabled={saving}
+            disabled={saving || pickingIcon}
           >
             <AppText preset="h2">{saving ? "저장 중..." : isEditMode ? "수정하기" : "추가하기"}</AppText>
           </Pressable>
@@ -430,6 +513,8 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
         onSelect={(key) => {
           setToppingIconKey(key);
           setIconUrl(null);
+          setIconStoragePath(null);
+          setPendingIconUri(null);
           setIconPickerOpen(false);
         }}
         onClose={() => setIconPickerOpen(false)}
