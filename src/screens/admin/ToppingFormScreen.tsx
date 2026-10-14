@@ -392,7 +392,7 @@ const ToppingFormScreen = ({ toppingId }: { toppingId?: string }) => {
               options={[
                 { label: "펄", value: "pearl" },
                 { label: "젤리", value: "jelly" },
-                { label: "시럽", value: "syrup" },
+                { label: "시럽/소스", value: "syrup" },
                 { label: "샷", value: "shot" },
                 { label: "폼", value: "foam" },
                 { label: "휘핑크림", value: "whippedCream" },

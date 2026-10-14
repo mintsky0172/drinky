@@ -35,7 +35,7 @@ const CATEGORIES: { value: ToppingCategory | "all"; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "pearl", label: "펄" },
   { value: "jelly", label: "젤리" },
-  { value: "syrup", label: "시럽" },
+  { value: "syrup", label: "시럽/소스" },
   { value: "shot", label: "샷" },
   { value: "foam", label: "폼" },
   { value: "whippedCream", label: "휘핑크림" },
